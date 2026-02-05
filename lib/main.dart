@@ -148,7 +148,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
     }
 
     const double tiltSensitivity = 300.0;
-    _targetOffset = Offset(deltaX, -deltaY) * tiltSensitivity;
+    _targetOffset = Offset(-deltaX, deltaY) * tiltSensitivity;
     _targetOffset = _clampToRadius(_targetOffset, _maxCursorRadius);
 
     const double response = 12.0;
@@ -309,7 +309,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
                   ),
                 ),
                 Positioned(
-                  top: 52,
+                  bottom: 52,
                   right: 24,
                   child: ElevatedButton.icon(
                     onPressed: _recenter,

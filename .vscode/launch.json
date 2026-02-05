@@ -5,18 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "mobile_touchless_interaction",
+            "name": "Debug mode",
             "request": "launch",
             "type": "dart"
         },
         {
-            "name": "mobile_touchless_interaction (profile mode)",
+            "name": "Profile mode",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile"
         },
         {
-            "name": "mobile_touchless_interaction (release mode)",
+            "name": "Release mode",
             "request": "launch",
             "type": "dart",
             "flutterMode": "release"
