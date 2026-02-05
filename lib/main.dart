@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
@@ -36,7 +37,8 @@ class TouchlessHome extends StatefulWidget {
   State<TouchlessHome> createState() => _TouchlessHomeState();
 }
 
-class _TouchlessHomeState extends State<TouchlessHome> {
+class _TouchlessHomeState extends State<TouchlessHome>
+    with SingleTickerProviderStateMixin {
   static const Duration _dwellDuration = Duration(milliseconds: 800);
   static const Duration _activationCooldown = Duration(milliseconds: 1200);
 
@@ -50,11 +52,13 @@ class _TouchlessHomeState extends State<TouchlessHome> {
   ];
 
   StreamSubscription<AccelerometerEvent>? _accelSub;
+  late final Ticker _ticker;
+  Duration? _lastTick;
   Timer? _dwellTimer;
-  DateTime? _lastAccelTime;
   DateTime? _lastActivationTime;
 
   Offset _cursorOffset = Offset.zero;
+  Offset _desiredOffset = Offset.zero;
   Offset _targetOffset = Offset.zero;
   List<Offset> _buttonOffsets = const [];
   int? _hoveredIndex;
@@ -81,6 +85,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
       _neutralY = _gravityY / gravityMag;
     }
 
+    _desiredOffset = Offset.zero;
     _targetOffset = Offset.zero;
     _cursorOffset = Offset.zero;
     _updateHover(null);
@@ -93,30 +98,25 @@ class _TouchlessHomeState extends State<TouchlessHome> {
   @override
   void initState() {
     super.initState();
-    _accelSub = accelerometerEvents.listen(_handleAccelEvent);
+    _accelSub = accelerometerEventStream().listen(_handleAccelEvent);
+    _ticker = createTicker(_onTick)..start();
   }
 
   @override
   void dispose() {
     _accelSub?.cancel();
+    _ticker.dispose();
     _dwellTimer?.cancel();
     super.dispose();
   }
 
   void _handleAccelEvent(AccelerometerEvent event) {
-    final now = DateTime.now();
-    final last = _lastAccelTime;
-    _lastAccelTime = now;
-
-    if (last == null || _buttonOffsets.isEmpty) {
+    if (_buttonOffsets.isEmpty) {
       return;
     }
 
-    final dt = (now.difference(last).inMilliseconds / 1000)
-        .clamp(0.01, 0.05);
-
     // Low-pass filter to approximate gravity for tilt direction.
-    const double gravityAlpha = 0.88;
+    const double gravityAlpha = 0.94;
     _gravityX = gravityAlpha * _gravityX + (1 - gravityAlpha) * event.x;
     _gravityY = gravityAlpha * _gravityY + (1 - gravityAlpha) * event.y;
     _gravityZ = gravityAlpha * _gravityZ + (1 - gravityAlpha) * event.z;
@@ -147,19 +147,48 @@ class _TouchlessHomeState extends State<TouchlessHome> {
       deltaY = 0.0;
     }
 
-    const double tiltSensitivity = 300.0;
-    _targetOffset = Offset(-deltaX, deltaY) * tiltSensitivity;
-    _targetOffset = _clampToRadius(_targetOffset, _maxCursorRadius);
+    const double tiltSensitivity = 980.0;
+    _desiredOffset = _clampToRadius(
+      Offset(-deltaX, deltaY) * tiltSensitivity,
+      _maxCursorRadius,
+    );
+  }
 
-    const double response = 12.0;
-    final smoothing = (dt * response).clamp(0.0, 1.0);
-    _cursorOffset += (_targetOffset - _cursorOffset) * smoothing;
+  void _onTick(Duration elapsed) {
+    final last = _lastTick;
+    _lastTick = elapsed;
 
-    final hovered = _findHoveredIndex(_cursorOffset);
-    if (hovered != null) {
-      _cursorOffset = _applyMagnet(_cursorOffset, _buttonOffsets[hovered]);
+    if (last == null || _buttonOffsets.isEmpty) {
+      return;
     }
 
+    final dt =
+        ((elapsed - last).inMicroseconds / 1000000.0).clamp(0.005, 0.05);
+
+    const double targetResponse = 6.0;
+    final targetSmoothing = (dt * targetResponse).clamp(0.0, 1.0);
+    _targetOffset += (_desiredOffset - _targetOffset) * targetSmoothing;
+
+    const double cursorResponse = 9.0;
+    final cursorSmoothing = (dt * cursorResponse).clamp(0.0, 1.0);
+    var nextCursor =
+        _cursorOffset + (_targetOffset - _cursorOffset) * cursorSmoothing;
+
+    const double maxCursorSpeed = 1350.0;
+    final delta = nextCursor - _cursorOffset;
+    final maxStep = maxCursorSpeed * dt;
+    if (delta.distance > maxStep) {
+      nextCursor = _cursorOffset + delta / delta.distance * maxStep;
+    }
+
+    nextCursor = _clampToRadius(nextCursor, _maxCursorRadius);
+
+    final hovered = _findHoveredIndex(nextCursor);
+    if (hovered != null) {
+      nextCursor = _applyMagnet(nextCursor, _buttonOffsets[hovered]);
+    }
+
+    _cursorOffset = nextCursor;
     _updateHover(hovered);
 
     if (mounted) {
@@ -204,7 +233,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
     }
 
     final pull = (1 - (dist / magnetRadius)).clamp(0.0, 1.0);
-    final strength = 0.35;
+    final strength = 0.05;
 
     return cursorOffset + (target - cursorOffset) * (strength * pull);
   }
