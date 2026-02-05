@@ -283,6 +283,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
             ),
             child: Stack(
               children: [
+                // Title and Instructions
                 Positioned(
                   top: 48,
                   left: 24,
@@ -308,6 +309,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
                     ],
                   ),
                 ),
+                // Recenter Button
                 Positioned(
                   bottom: 52,
                   right: 24,
@@ -333,6 +335,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
                     label: const Text('Recenter'),
                   ),
                 ),
+                // Circle
                 Positioned.fill(
                   child: IgnorePointer(
                     child: Center(
@@ -350,6 +353,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
                     ),
                   ),
                 ),
+                // Buttons
                 ..._labels.asMap().entries.map((entry) {
                   final index = entry.key;
                   final label = entry.value;
@@ -398,6 +402,8 @@ class _TouchlessHomeState extends State<TouchlessHome> {
                     ),
                   );
                 }),
+                
+                // Cursor
                 Positioned(
                   left: center.dx + _cursorOffset.dx - 10,
                   top: center.dy + _cursorOffset.dy - 10,
