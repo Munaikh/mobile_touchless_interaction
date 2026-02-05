@@ -39,8 +39,16 @@ class TouchlessHome extends StatefulWidget {
 
 class _TouchlessHomeState extends State<TouchlessHome>
     with SingleTickerProviderStateMixin {
-  static const Duration _dwellDuration = Duration(milliseconds: 800);
+  static const Duration _dwellDuration = Duration(milliseconds: 1100);
+  static const Duration _fastDwellDuration = Duration(milliseconds: 1100);
   static const Duration _activationCooldown = Duration(milliseconds: 1200);
+  static const double _arcInnerStart = 0.7;
+  static const double _arcQuickDepth = 0.86;
+  static const double _arcEdgeBuffer = 0.04;
+  static const double _returnNeutralThreshold = 0.2;
+  static const double _returnPullStrength = 8.0;
+  static const double _centerAttenuationRadius = 0.35;
+  static const double _centerMinGain = 0.35;
 
   final List<String> _labels = const [
     'Call',
@@ -63,7 +71,7 @@ class _TouchlessHomeState extends State<TouchlessHome>
   List<Offset> _buttonOffsets = const [];
   int? _hoveredIndex;
 
-  double _circleRadius = 140.0;
+  double _circleRadius = 100.0;
   double _buttonRadius = 48.0;
   double _maxCursorRadius = 190.0;
 
@@ -72,12 +80,11 @@ class _TouchlessHomeState extends State<TouchlessHome>
   double _gravityZ = 0.0;
   double? _neutralX;
   double? _neutralY;
+  bool _showDebugOverlay = false;
 
   void _recenter() {
     final gravityMag = sqrt(
-      _gravityX * _gravityX +
-          _gravityY * _gravityY +
-          _gravityZ * _gravityZ,
+      _gravityX * _gravityX + _gravityY * _gravityY + _gravityZ * _gravityZ,
     );
 
     if (gravityMag >= 0.1) {
@@ -116,15 +123,13 @@ class _TouchlessHomeState extends State<TouchlessHome>
     }
 
     // Low-pass filter to approximate gravity for tilt direction.
-    const double gravityAlpha = 0.94;
+    const double gravityAlpha = 0.5;
     _gravityX = gravityAlpha * _gravityX + (1 - gravityAlpha) * event.x;
     _gravityY = gravityAlpha * _gravityY + (1 - gravityAlpha) * event.y;
     _gravityZ = gravityAlpha * _gravityZ + (1 - gravityAlpha) * event.z;
 
     final gravityMag = sqrt(
-      _gravityX * _gravityX +
-          _gravityY * _gravityY +
-          _gravityZ * _gravityZ,
+      _gravityX * _gravityX + _gravityY * _gravityY + _gravityZ * _gravityZ,
     );
     if (gravityMag < 0.1) {
       return;
@@ -147,11 +152,17 @@ class _TouchlessHomeState extends State<TouchlessHome>
       deltaY = 0.0;
     }
 
-    const double tiltSensitivity = 980.0;
-    _desiredOffset = _clampToRadius(
-      Offset(-deltaX, deltaY) * tiltSensitivity,
-      _maxCursorRadius,
-    );
+    const double tiltSensitivity = 1150.0;
+    var desiredOffset = Offset(-deltaX, deltaY) * tiltSensitivity;
+    final desiredRadius = desiredOffset.distance;
+    final attenRadius = _circleRadius * _centerAttenuationRadius;
+    if (desiredRadius < attenRadius && desiredRadius > 0.0) {
+      final t = (desiredRadius / attenRadius).clamp(0.0, 1.0);
+      final curved = pow(t, 1.6).toDouble();
+      final gain = _centerMinGain + (1 - _centerMinGain) * curved;
+      desiredOffset = desiredOffset * gain;
+    }
+    _desiredOffset = _clampToRadius(desiredOffset, _maxCursorRadius);
   }
 
   void _onTick(Duration elapsed) {
@@ -162,19 +173,18 @@ class _TouchlessHomeState extends State<TouchlessHome>
       return;
     }
 
-    final dt =
-        ((elapsed - last).inMicroseconds / 1000000.0).clamp(0.005, 0.05);
+    final dt = ((elapsed - last).inMicroseconds / 1000000.0).clamp(0.005, 0.05);
 
     const double targetResponse = 6.0;
     final targetSmoothing = (dt * targetResponse).clamp(0.0, 1.0);
     _targetOffset += (_desiredOffset - _targetOffset) * targetSmoothing;
 
-    const double cursorResponse = 9.0;
+    const double cursorResponse = 20.0;
     final cursorSmoothing = (dt * cursorResponse).clamp(0.0, 1.0);
     var nextCursor =
         _cursorOffset + (_targetOffset - _cursorOffset) * cursorSmoothing;
 
-    const double maxCursorSpeed = 1350.0;
+    const double maxCursorSpeed = 1750.0;
     final delta = nextCursor - _cursorOffset;
     final maxStep = maxCursorSpeed * dt;
     if (delta.distance > maxStep) {
@@ -183,13 +193,19 @@ class _TouchlessHomeState extends State<TouchlessHome>
 
     nextCursor = _clampToRadius(nextCursor, _maxCursorRadius);
 
-    final hovered = _findHoveredIndex(nextCursor);
-    if (hovered != null) {
-      nextCursor = _applyMagnet(nextCursor, _buttonOffsets[hovered]);
+    final neutralThreshold = _circleRadius * _returnNeutralThreshold;
+    if (_desiredOffset.distance < neutralThreshold && nextCursor.distance > 0) {
+      final pull = (_returnPullStrength * dt).clamp(0.0, 0.85);
+      nextCursor = nextCursor * (1 - pull);
     }
 
+    int? hovered;
+    var quick = false;
+    hovered = _findHoveredIndex(nextCursor);
+    quick = hovered != null && _isQuickHover(nextCursor);
+
     _cursorOffset = nextCursor;
-    _updateHover(hovered);
+    _updateHover(hovered, quick: quick);
 
     if (mounted) {
       setState(() {});
@@ -209,36 +225,37 @@ class _TouchlessHomeState extends State<TouchlessHome>
       return null;
     }
 
-    final hoverRadius = _buttonRadius * 0.75;
-    int? hovered;
-    double best = hoverRadius;
+    final depthThreshold = _circleRadius * _arcInnerStart;
+    final radial = cursorOffset.distance;
+    if (radial < depthThreshold) {
+      return null;
+    }
 
-    for (var i = 0; i < _buttonOffsets.length; i++) {
-      final dist = (cursorOffset - _buttonOffsets[i]).distance;
-      if (dist < best) {
-        best = dist;
-        hovered = i;
+    final angle = atan2(cursorOffset.dy, cursorOffset.dx);
+    final step = (2 * pi) / _labels.length;
+    final normalized = (angle + pi / 2 + 2 * pi) % (2 * pi);
+    final rawIndex = (normalized / step).floor().clamp(0, _labels.length - 1);
+    final centerAngle = -pi / 2 + step * rawIndex + step / 2;
+    final diff = ((angle - centerAngle + pi) % (2 * pi)) - pi;
+    var edgeBuffer = step * _arcEdgeBuffer;
+    if (_hoveredIndex == rawIndex) {
+      edgeBuffer *= 0.7;
+    }
+    if (diff.abs() > (step / 2 - edgeBuffer)) {
+      if (radial >= _circleRadius * _arcQuickDepth) {
+        final roundedIndex = (normalized / step).round() % _labels.length;
+        return roundedIndex;
       }
+      return null;
     }
-
-    return hovered;
+    return rawIndex;
   }
 
-  Offset _applyMagnet(Offset cursorOffset, Offset target) {
-    final magnetRadius = _buttonRadius * 1.6;
-    final dist = (target - cursorOffset).distance;
-
-    if (dist >= magnetRadius) {
-      return cursorOffset;
-    }
-
-    final pull = (1 - (dist / magnetRadius)).clamp(0.0, 1.0);
-    final strength = 0.05;
-
-    return cursorOffset + (target - cursorOffset) * (strength * pull);
+  bool _isQuickHover(Offset cursorOffset) {
+    return cursorOffset.distance >= _circleRadius * _arcQuickDepth;
   }
 
-  void _updateHover(int? index) {
+  void _updateHover(int? index, {bool quick = false}) {
     if (index == _hoveredIndex) {
       return;
     }
@@ -248,7 +265,8 @@ class _TouchlessHomeState extends State<TouchlessHome>
 
     if (index != null) {
       HapticFeedback.selectionClick();
-      _dwellTimer = Timer(_dwellDuration, () => _activate(index));
+      final dwell = quick ? _fastDwellDuration : _dwellDuration;
+      _dwellTimer = Timer(dwell, () => _activate(index));
     }
   }
 
@@ -330,38 +348,73 @@ class _TouchlessHomeState extends State<TouchlessHome>
                       SizedBox(height: 8),
                       Text(
                         'Tilt the device to move the cursor. Hold over a button\nfor a moment to activate it with haptics.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          height: 1.4,
-                        ),
+                        style: TextStyle(fontSize: 14, height: 1.4),
                       ),
                     ],
                   ),
                 ),
-                // Recenter Button
+                // Recenter + Debug
                 Positioned(
                   bottom: 52,
                   right: 24,
-                  child: ElevatedButton.icon(
-                    onPressed: _recenter,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF256B6A),
-                      elevation: 2,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _recenter,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF256B6A),
+                          elevation: 2,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        icon: const Icon(Icons.center_focus_strong, size: 16),
+                        label: const Text('Recenter'),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
+                      const SizedBox(width: 10),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _showDebugOverlay = !_showDebugOverlay;
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF256B6A),
+                          side: const BorderSide(
+                            color: Color(0xFF256B6A),
+                            width: 1.2,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        icon: Icon(
+                          _showDebugOverlay
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          size: 16,
+                        ),
+                        label: Text(_showDebugOverlay ? 'Hide Debug' : 'Debug'),
                       ),
-                      textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    icon: const Icon(Icons.center_focus_strong, size: 16),
-                    label: const Text('Recenter'),
+                    ],
                   ),
                 ),
                 // Circle
@@ -382,6 +435,22 @@ class _TouchlessHomeState extends State<TouchlessHome>
                     ),
                   ),
                 ),
+                if (_showDebugOverlay)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _DebugOverlayPainter(
+                          labelsCount: _labels.length,
+                          circleRadius: _circleRadius,
+                          maxCursorRadius: _maxCursorRadius,
+                          arcInnerStart: _arcInnerStart,
+                          arcQuickDepth: _arcQuickDepth,
+                          arcEdgeBuffer: _arcEdgeBuffer,
+                          cursorOffset: _cursorOffset,
+                        ),
+                      ),
+                    ),
+                  ),
                 // Buttons
                 ..._labels.asMap().entries.map((entry) {
                   final index = entry.key;
@@ -431,29 +500,104 @@ class _TouchlessHomeState extends State<TouchlessHome>
                     ),
                   );
                 }),
-                
+
                 // Cursor
-                Positioned(
-                  left: center.dx + _cursorOffset.dx - 10,
-                  top: center.dy + _cursorOffset.dy - 10,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF256B6A).withOpacity(0.2),
-                      border: Border.all(
-                        color: const Color(0xFF256B6A),
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           );
         },
       ),
     );
+  }
+}
+
+class _DebugOverlayPainter extends CustomPainter {
+  _DebugOverlayPainter({
+    required this.labelsCount,
+    required this.circleRadius,
+    required this.maxCursorRadius,
+    required this.arcInnerStart,
+    required this.arcQuickDepth,
+    required this.arcEdgeBuffer,
+    required this.cursorOffset,
+  });
+
+  final int labelsCount;
+  final double circleRadius;
+  final double maxCursorRadius;
+  final double arcInnerStart;
+  final double arcQuickDepth;
+  final double arcEdgeBuffer;
+  final Offset cursorOffset;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+
+    final outlinePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    outlinePaint.color = Colors.blueGrey.withOpacity(0.35);
+    canvas.drawCircle(center, maxCursorRadius, outlinePaint);
+
+    outlinePaint.color = Colors.deepPurple.withOpacity(0.4);
+    canvas.drawCircle(center, circleRadius * arcInnerStart, outlinePaint);
+
+    outlinePaint.color = Colors.teal.withOpacity(0.4);
+    canvas.drawCircle(center, circleRadius * arcQuickDepth, outlinePaint);
+
+    final step = (2 * pi) / labelsCount;
+    final arcPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.blue.withOpacity(0.08);
+    final innerRadius = circleRadius * arcInnerStart;
+
+    for (var i = 0; i < labelsCount; i++) {
+      final start = -pi / 2 + step * i + step * arcEdgeBuffer;
+      final end = -pi / 2 + step * (i + 1) - step * arcEdgeBuffer;
+      if (end <= start) {
+        continue;
+      }
+      final path = Path()
+        ..moveTo(
+          center.dx + cos(start) * innerRadius,
+          center.dy + sin(start) * innerRadius,
+        )
+        ..arcTo(
+          Rect.fromCircle(center: center, radius: innerRadius),
+          start,
+          end - start,
+          false,
+        )
+        ..lineTo(
+          center.dx + cos(end) * circleRadius,
+          center.dy + sin(end) * circleRadius,
+        )
+        ..arcTo(
+          Rect.fromCircle(center: center, radius: circleRadius),
+          end,
+          start - end,
+          false,
+        )
+        ..close();
+      canvas.drawPath(path, arcPaint);
+    }
+
+    final cursorPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.red.withOpacity(0.8);
+    canvas.drawCircle(center + cursorOffset, 5, cursorPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DebugOverlayPainter oldDelegate) {
+    return labelsCount != oldDelegate.labelsCount ||
+        circleRadius != oldDelegate.circleRadius ||
+        maxCursorRadius != oldDelegate.maxCursorRadius ||
+        arcInnerStart != oldDelegate.arcInnerStart ||
+        arcQuickDepth != oldDelegate.arcQuickDepth ||
+        arcEdgeBuffer != oldDelegate.arcEdgeBuffer ||
+        cursorOffset != oldDelegate.cursorOffset;
   }
 }
