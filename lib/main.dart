@@ -95,7 +95,7 @@ class TouchlessHome extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: isHovered ? 18 : 10,
                             offset: const Offset(0, 6),
                           ),
