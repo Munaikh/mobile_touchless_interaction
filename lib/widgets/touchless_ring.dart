@@ -291,9 +291,8 @@ class _TouchlessRingState extends State<TouchlessRing>
   }
 
   void _recalculateLayout(Size size) {
-    final minSide = min(size.width, size.height);
-    _circleRadius = minSide * 0.28;
-    _buttonRadius = minSide * 0.085;
+    _buttonRadius = size.width * 0.085;
+    _circleRadius = max(0, (size.width / 2) - _buttonRadius - 8);
     _maxCursorRadius = _circleRadius + _buttonRadius * 0.8;
 
     if (widget.items.isEmpty) {
