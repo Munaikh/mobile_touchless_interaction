@@ -358,6 +358,42 @@ class _TouchlessRingState extends State<TouchlessRing>
     });
   }
 
+  Widget _buildDefaultItem(bool isHovered, double size, Widget child) {
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 150),
+      scale: isHovered ? 1.08 : 1.0,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isHovered ? const Color(0xFF256B6A) : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: isHovered ? 18 : 10,
+              offset: const Offset(0, 6),
+            ),
+          ],
+          border: Border.all(
+            color: isHovered ? const Color(0xFF1F5957) : const Color(0xFFE0E6E6),
+            width: isHovered ? 2 : 1,
+          ),
+        ),
+        child: DefaultTextStyle.merge(
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isHovered ? Colors.white : Colors.black87,
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -418,7 +454,7 @@ class _TouchlessRingState extends State<TouchlessRing>
                     buttonSize,
                     child,
                   ) ??
-                  child;
+                  _buildDefaultItem(isHovered, buttonSize, child);
 
               return Positioned(
                 left: center.dx + offset.dx - buttonSize / 2,
