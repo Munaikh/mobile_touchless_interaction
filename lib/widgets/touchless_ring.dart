@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 import 'package:haptic_feedback/haptic_feedback.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
@@ -59,6 +58,9 @@ class _TouchlessRingState extends State<TouchlessRing>
   Duration? _lastTick;
   Timer? _dwellTimer;
   DateTime? _lastActivationTime;
+  DateTime? _hoverStartTime;
+  Duration? _activeDwellDuration;
+  bool _isQuickHoverMode = false;
 
   Offset _cursorOffset = Offset.zero;
   Offset _desiredOffset = Offset.zero;
@@ -261,17 +263,66 @@ class _TouchlessRingState extends State<TouchlessRing>
     return cursorOffset.distance >= _circleRadius * _arcQuickDepth;
   }
 
+  double _hoverProgress() {
+    final start = _hoverStartTime;
+    final dwell = _activeDwellDuration;
+    if (_hoveredIndex == null || start == null || dwell == null) {
+      return 0.0;
+    }
+
+    final dwellMicros = dwell.inMicroseconds;
+    if (dwellMicros <= 0) {
+      return 1.0;
+    }
+
+    final elapsed = DateTime.now().difference(start).inMicroseconds;
+    return (elapsed / dwellMicros).clamp(0.0, 1.0).toDouble();
+  }
+
   void _updateHover(int? index, {bool quick = false}) {
     if (index == _hoveredIndex) {
+      if (index == null || quick == _isQuickHoverMode) {
+        return;
+      }
+
+      final oldDwell = _activeDwellDuration;
+      final start = _hoverStartTime;
+      if (oldDwell == null || start == null || oldDwell.inMicroseconds <= 0) {
+        return;
+      }
+
+      final now = DateTime.now();
+      final elapsed = now.difference(start).inMicroseconds;
+      final progress = (elapsed / oldDwell.inMicroseconds).clamp(0.0, 1.0);
+      final newDwell = quick ? widget.fastDwellDuration : widget.dwellDuration;
+      final consumed = Duration(
+        microseconds: (newDwell.inMicroseconds * progress).round(),
+      );
+
+      _isQuickHoverMode = quick;
+      _activeDwellDuration = newDwell;
+      _hoverStartTime = now.subtract(consumed);
+      _dwellTimer?.cancel();
+      final remaining = newDwell - consumed;
+      if (remaining <= Duration.zero) {
+        _activate(index);
+      } else {
+        _dwellTimer = Timer(remaining, () => _activate(index));
+      }
       return;
     }
 
     _hoveredIndex = index;
     _dwellTimer?.cancel();
+    _hoverStartTime = null;
+    _activeDwellDuration = null;
+    _isQuickHoverMode = quick;
 
     if (index != null) {
       Haptics.vibrate(HapticsType.rigid);
       final dwell = quick ? widget.fastDwellDuration : widget.dwellDuration;
+      _hoverStartTime = DateTime.now();
+      _activeDwellDuration = dwell;
       _dwellTimer = Timer(dwell, () => _activate(index));
     }
   }
@@ -316,7 +367,8 @@ class _TouchlessRingState extends State<TouchlessRing>
           constraints.biggest.width / 2,
           constraints.biggest.height / 2,
         );
-        final buttonSize = _buttonRadius * 2;
+        final buttonSize = _buttonRadius * 2.5;
+        final hoverProgress = _hoverProgress();
 
         return Stack(
           children: [
@@ -374,7 +426,29 @@ class _TouchlessRingState extends State<TouchlessRing>
                 child: SizedBox(
                   width: buttonSize,
                   height: buttonSize,
-                  child: built,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: built),
+                      if (isHovered)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: CircularProgressIndicator(
+                                value: hoverProgress,
+                                strokeWidth: 3,
+                                backgroundColor: Colors.white.withValues(
+                                  alpha: 0.22,
+                                ),
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               );
             }),
