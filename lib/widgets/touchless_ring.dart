@@ -4,15 +4,17 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:haptic_feedback/haptic_feedback.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-typedef TouchlessRingItemBuilder = Widget Function(
-  BuildContext context,
-  int index,
-  bool isHovered,
-  double size,
-  Widget child,
-);
+typedef TouchlessRingItemBuilder =
+    Widget Function(
+      BuildContext context,
+      int index,
+      bool isHovered,
+      double size,
+      Widget child,
+    );
 
 class TouchlessRing extends StatefulWidget {
   const TouchlessRing({
@@ -87,8 +89,7 @@ class _TouchlessRingState extends State<TouchlessRing>
   void didUpdateWidget(TouchlessRing oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.items.length != oldWidget.items.length) {
-      if (_hoveredIndex != null &&
-          _hoveredIndex! >= widget.items.length) {
+      if (_hoveredIndex != null && _hoveredIndex! >= widget.items.length) {
         _updateHover(null);
       }
     }
@@ -236,7 +237,10 @@ class _TouchlessRingState extends State<TouchlessRing>
     final angle = atan2(cursorOffset.dy, cursorOffset.dx);
     final step = (2 * pi) / _itemOffsets.length;
     final normalized = (angle + pi / 2 + 2 * pi) % (2 * pi);
-    final rawIndex = (normalized / step).floor().clamp(0, _itemOffsets.length - 1);
+    final rawIndex = (normalized / step).floor().clamp(
+      0,
+      _itemOffsets.length - 1,
+    );
     final centerAngle = -pi / 2 + step * rawIndex + step / 2;
     final diff = ((angle - centerAngle + pi) % (2 * pi)) - pi;
     var edgeBuffer = step * _arcEdgeBuffer;
@@ -266,7 +270,7 @@ class _TouchlessRingState extends State<TouchlessRing>
     _dwellTimer?.cancel();
 
     if (index != null) {
-      HapticFeedback.selectionClick();
+      Haptics.vibrate(HapticsType.rigid);
       final dwell = quick ? widget.fastDwellDuration : widget.dwellDuration;
       _dwellTimer = Timer(dwell, () => _activate(index));
     }
@@ -282,7 +286,7 @@ class _TouchlessRingState extends State<TouchlessRing>
     }
 
     _lastActivationTime = now;
-    HapticFeedback.mediumImpact();
+    Haptics.vibrate(HapticsType.success);
     widget.onActivate?.call(index);
   }
 
@@ -355,7 +359,8 @@ class _TouchlessRingState extends State<TouchlessRing>
               final child = entry.value;
               final offset = _itemOffsets[index];
               final isHovered = _hoveredIndex == index;
-              final built = widget.itemBuilder?.call(
+              final built =
+                  widget.itemBuilder?.call(
                     context,
                     index,
                     isHovered,
@@ -436,8 +441,7 @@ class _TouchlessRingState extends State<TouchlessRing>
                               : Icons.visibility,
                           size: 16,
                         ),
-                        label:
-                            Text(_showDebugOverlay ? 'Hide Debug' : 'Debug'),
+                        label: Text(_showDebugOverlay ? 'Hide Debug' : 'Debug'),
                       ),
                   ],
                 ),
