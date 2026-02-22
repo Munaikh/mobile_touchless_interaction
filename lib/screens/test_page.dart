@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -67,17 +65,16 @@ class _TestPageState extends State<TestPage> {
     });
 
     if (nextTask >= widget.testQuestions.length) {
-      unawaited(_completeSessionAndShowReport());
+      _completeSessionAndShowReport();
     }
   }
 
-  Future<void> _completeSessionAndShowReport() async {
+  void _completeSessionAndShowReport() {
     if (_isCompletingSession) {
       return;
     }
     _isCompletingSession = true;
 
-    final seqEaseRating = await _promptSeqEaseRating();
     final firstAttemptCorrectCount = _questionAttempts
         .where((attemptCount) => attemptCount == 1)
         .length;
@@ -96,62 +93,11 @@ class _TestPageState extends State<TestPage> {
           firstAttemptCorrectCount: firstAttemptCorrectCount,
           wrongTargetActivations: _wrongTargetActivations,
           failedAttempts: failedAttempts,
-          seqEaseRating: seqEaseRating,
           questions: widget.testQuestions,
           attemptsPerQuestion: _questionAttempts,
         ),
       ),
     );
-  }
-
-  Future<int> _promptSeqEaseRating() async {
-    var selectedRating = 4;
-    final result = await showDialog<int>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('SEQ Rating'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Overall, how easy was this test? (1 = hard, 7 = easy)',
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: List.generate(7, (index) {
-                      final value = index + 1;
-                      return ChoiceChip(
-                        label: Text('$value'),
-                        selected: selectedRating == value,
-                        onSelected: (_) {
-                          setDialogState(() {
-                            selectedRating = value;
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                ],
-              ),
-              actions: [
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(selectedRating),
-                  child: const Text('Continue'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-    return result ?? selectedRating;
   }
 
   Widget _buildTaskCard() {

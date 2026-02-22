@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_touchless_interaction/widgets/stat_card.dart';
 
 import '../models/task_question.dart';
 
-class TestReportPage extends StatelessWidget {
+class TestReportPage extends StatefulWidget {
   const TestReportPage({
     super.key,
     required this.totalQuestions,
@@ -10,7 +11,6 @@ class TestReportPage extends StatelessWidget {
     required this.firstAttemptCorrectCount,
     required this.wrongTargetActivations,
     required this.failedAttempts,
-    required this.seqEaseRating,
     required this.questions,
     required this.attemptsPerQuestion,
   });
@@ -20,9 +20,85 @@ class TestReportPage extends StatelessWidget {
   final int firstAttemptCorrectCount;
   final int wrongTargetActivations;
   final int failedAttempts;
-  final int seqEaseRating;
   final List<TaskQuestion> questions;
   final List<int> attemptsPerQuestion;
+
+  @override
+  State<TestReportPage> createState() => _TestReportPageState();
+}
+
+class _TestReportPageState extends State<TestReportPage> {
+  int? _seqEaseRating;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showSeqRatingDialog();
+    });
+  }
+
+  Future<void> _showSeqRatingDialog() async {
+    final rating = await _promptSeqEaseRating();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _seqEaseRating = rating;
+    });
+  }
+
+  Future<int> _promptSeqEaseRating() async {
+    var selectedRating = 4;
+    final result = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('SEQ Rating'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Overall, how easy was this test? (1 = hard, 7 = easy)',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(7, (index) {
+                      final value = index + 1;
+                      return ChoiceChip(
+                        label: Text('$value'),
+                        selected: selectedRating == value,
+                        onSelected: (_) {
+                          setDialogState(() {
+                            selectedRating = value;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                ],
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(selectedRating),
+                  child: const Text('Continue'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    return result ?? selectedRating;
+  }
 
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes;
@@ -32,16 +108,17 @@ class TestReportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final firstTryRate = totalQuestions == 0
+    final firstTryRate = widget.totalQuestions == 0
         ? 0
-        : ((firstAttemptCorrectCount / totalQuestions) * 100).round();
-    final totalAttempts = attemptsPerQuestion.fold<int>(
+        : ((widget.firstAttemptCorrectCount / widget.totalQuestions) * 100)
+              .round();
+    final totalAttempts = widget.attemptsPerQuestion.fold<int>(
       0,
       (sum, attempts) => sum + attempts,
     );
-    final attemptsPerTrial = totalQuestions == 0
+    final attemptsPerTrial = widget.totalQuestions == 0
         ? 0.0
-        : totalAttempts / totalQuestions;
+        : totalAttempts / widget.totalQuestions;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
@@ -66,31 +143,38 @@ class TestReportPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                _StatCard(
+                StatCard(
                   title: 'First-attempt correct',
-                  value: '$firstAttemptCorrectCount / $totalQuestions',
+                  value:
+                      '${widget.firstAttemptCorrectCount} / ${widget.totalQuestions}',
                 ),
                 const SizedBox(height: 10),
-                _StatCard(
+                StatCard(
                   title: 'Completion time',
-                  value: _formatDuration(completionTime),
+                  value: _formatDuration(widget.completionTime),
                 ),
                 const SizedBox(height: 10),
-                _StatCard(
+                StatCard(
                   title: 'Wrong-target activations',
-                  value: '$wrongTargetActivations',
+                  value: '${widget.wrongTargetActivations}',
                 ),
                 const SizedBox(height: 10),
-                _StatCard(
+                StatCard(
                   title: 'Attempts per trial',
                   value: attemptsPerTrial.toStringAsFixed(2),
                 ),
                 const SizedBox(height: 10),
-                _StatCard(title: 'SEQ (1-7 ease)', value: '$seqEaseRating'),
+                StatCard(
+                  title: 'SEQ (1-7 ease)',
+                  value: _seqEaseRating?.toString() ?? '-',
+                ),
                 const SizedBox(height: 10),
-                _StatCard(title: 'Failed attempts', value: '$failedAttempts'),
+                StatCard(
+                  title: 'Failed attempts',
+                  value: '${widget.failedAttempts}',
+                ),
                 const SizedBox(height: 10),
-                _StatCard(title: 'First-try rate', value: '$firstTryRate%'),
+                StatCard(title: 'First-try rate', value: '$firstTryRate%'),
                 const SizedBox(height: 18),
                 Text(
                   'Per Question',
@@ -101,10 +185,10 @@ class TestReportPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                ...questions.asMap().entries.map((entry) {
+                ...widget.questions.asMap().entries.map((entry) {
                   final index = entry.key;
                   final question = entry.value;
-                  final attempts = attemptsPerQuestion[index];
+                  final attempts = widget.attemptsPerQuestion[index];
                   final statusText = attempts == 1
                       ? 'Correct on first attempt'
                       : 'Solved in $attempts attempts';
@@ -162,49 +246,6 @@ class TestReportPage extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.title, required this.value});
-
-  final String title;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD3DEDD)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.onPrimaryContainer,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: colors.primary,
-            ),
-          ),
-        ],
       ),
     );
   }
