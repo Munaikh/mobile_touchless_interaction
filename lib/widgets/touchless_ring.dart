@@ -45,13 +45,16 @@ class TouchlessRing extends StatefulWidget {
 
 class _TouchlessRingState extends State<TouchlessRing>
     with SingleTickerProviderStateMixin {
-  static const double _arcInnerStart = 0.7;
+  static const double _arcInnerStart = 0.72;
+  static const double _arcEnterStart = 0.8;
   static const double _arcQuickDepth = 0.86;
   static const double _arcEdgeBuffer = 0.04;
-  static const double _returnNeutralThreshold = 0.2;
-  static const double _returnPullStrength = 8.0;
-  static const double _centerAttenuationRadius = 0.35;
-  static const double _centerMinGain = 0.35;
+  static const double _returnNeutralThreshold = 0.3;
+  static const double _returnPullStrength = 9.5;
+  static const double _centerAttenuationRadius = 0.52;
+  static const double _centerMinGain = 0.18;
+  static const double _centerStickyRadius = 0.36;
+  static const double _centerStickyPullStrength = 11.0;
 
   StreamSubscription<AccelerometerEvent>? _accelSub;
   late final Ticker _ticker;
@@ -151,7 +154,7 @@ class _TouchlessRingState extends State<TouchlessRing>
     var deltaX = normX - (_neutralX ?? 0.0);
     var deltaY = normY - (_neutralY ?? 0.0);
 
-    const double deadZone = 0.015;
+    const double deadZone = 0.022;
     if (deltaX.abs() < deadZone) {
       deltaX = 0.0;
     }
@@ -159,8 +162,12 @@ class _TouchlessRingState extends State<TouchlessRing>
       deltaY = 0.0;
     }
 
-    const double tiltSensitivity = 1150.0;
+    const double tiltSensitivity = 980.0;
     var desiredOffset = Offset(-deltaX, deltaY) * tiltSensitivity;
+    final inputRadius = sqrt(deltaX * deltaX + deltaY * deltaY);
+    if (inputRadius < deadZone * 1.6) {
+      desiredOffset = Offset.zero;
+    }
     final desiredRadius = desiredOffset.distance;
     final attenRadius = _circleRadius * _centerAttenuationRadius;
     if (desiredRadius < attenRadius && desiredRadius > 0.0) {
@@ -205,6 +212,16 @@ class _TouchlessRingState extends State<TouchlessRing>
       final pull = (_returnPullStrength * dt).clamp(0.0, 0.85);
       nextCursor = nextCursor * (1 - pull);
     }
+    final stickyThreshold = _circleRadius * _centerStickyRadius;
+    if (_desiredOffset.distance < stickyThreshold &&
+        nextCursor.distance < stickyThreshold &&
+        nextCursor.distance > 0) {
+      final pull = (_centerStickyPullStrength * dt).clamp(0.0, 0.92);
+      nextCursor = nextCursor * (1 - pull);
+      if (nextCursor.distance < 1.4) {
+        nextCursor = Offset.zero;
+      }
+    }
 
     final hovered = _findHoveredIndex(nextCursor);
     final quick = hovered != null && _isQuickHover(nextCursor);
@@ -230,7 +247,9 @@ class _TouchlessRingState extends State<TouchlessRing>
       return null;
     }
 
-    final depthThreshold = _circleRadius * _arcInnerStart;
+    final depthThreshold =
+        _circleRadius *
+        (_hoveredIndex == null ? _arcEnterStart : _arcInnerStart);
     final radial = cursorOffset.distance;
     if (radial < depthThreshold) {
       return null;

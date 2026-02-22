@@ -229,6 +229,7 @@ class _TestPageState extends State<TestPage> {
               const SizedBox(height: 12),
               Expanded(
                 child: TouchlessRing(
+                  dwellDuration: const Duration(seconds: 2),
                   fastDwellDuration: const Duration(seconds: 2),
                   items: items,
                   showDebugToggle: kDebugMode,
