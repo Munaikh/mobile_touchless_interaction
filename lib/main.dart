@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_touchless_interaction/screens/touchless_test_setup_page.dart';
+import 'package:mobile_touchless_interaction/screens/test_setup_page.dart';
 
 void main() {
   runApp(const MainApp());
@@ -20,7 +20,7 @@ class MainApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
       ),
-      home: const TouchlessTestSetupPage(),
+      home: const TestSetupPage(),
     );
   }
 }

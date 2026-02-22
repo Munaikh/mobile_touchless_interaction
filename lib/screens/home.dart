@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../data/touchless_test_questions.dart';
-import '../models/touchless_task_question.dart';
+import '../data/test_questions.dart';
+import '../models/task_question.dart';
 import '../widgets/touchless_ring.dart';
+import 'quiz_report_page.dart';
 
-class TouchlessHome extends StatefulWidget {
-  TouchlessHome({super.key, required List<TouchlessTaskQuestion> testQuestions})
-    : testQuestions = testQuestions.isEmpty
-          ? kTouchlessTestQuestions
-          : testQuestions;
+class Home extends StatefulWidget {
+  Home({super.key, required List<TaskQuestion> testQuestions})
+    : testQuestions = testQuestions.isEmpty ? kTestQuestions : testQuestions;
 
-  final List<TouchlessTaskQuestion> testQuestions;
+  final List<TaskQuestion> testQuestions;
 
   static const List<String> labels = [
     'Call',
@@ -22,29 +21,34 @@ class TouchlessHome extends StatefulWidget {
   ];
 
   @override
-  State<TouchlessHome> createState() => _TouchlessHomeState();
+  State<Home> createState() => _HomeState();
 }
 
-class _TouchlessHomeState extends State<TouchlessHome> {
+class _HomeState extends State<Home> {
   late int _currentTaskIndex;
+  late List<int> _questionAttempts;
+  int _failedAttempts = 0;
 
   @override
   void initState() {
     super.initState();
     _currentTaskIndex = 0;
+    _questionAttempts = List<int>.filled(widget.testQuestions.length, 0);
   }
 
   bool get _isFinished => _currentTaskIndex >= widget.testQuestions.length;
 
   void _handleActivation(int index) {
-    final selectedLabel = TouchlessHome.labels[index];
+    final selectedLabel = Home.labels[index];
     if (_isFinished) {
       _showMessage('Activated $selectedLabel');
       return;
     }
 
+    _questionAttempts[_currentTaskIndex] += 1;
     final currentTask = widget.testQuestions[_currentTaskIndex];
     if (selectedLabel.toLowerCase() != currentTask.targetLabel.toLowerCase()) {
+      _failedAttempts += 1;
       _showMessage(
         'Selected $selectedLabel. Current task: ${currentTask.targetLabel}.',
       );
@@ -58,7 +62,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
     _showMessage('Correct: $selectedLabel');
 
     if (nextTask >= widget.testQuestions.length) {
-      _showCompletionDialog();
+      _showReportPage();
     }
   }
 
@@ -71,28 +75,21 @@ class _TouchlessHomeState extends State<TouchlessHome> {
     );
   }
 
-  void _showCompletionDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Test Completed'),
-          content: const Text('You completed all randomized tasks.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(this.context).pop();
-              },
-              child: const Text('Back to Start'),
-            ),
-          ],
-        );
-      },
+  void _showReportPage() {
+    final firstAttemptCorrectCount = _questionAttempts
+        .where((attemptCount) => attemptCount == 1)
+        .length;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => QuizReportPage(
+          totalQuestions: widget.testQuestions.length,
+          firstAttemptCorrectCount: firstAttemptCorrectCount,
+          failedAttempts: _failedAttempts,
+          questions: widget.testQuestions,
+          attemptsPerQuestion: _questionAttempts,
+        ),
+      ),
     );
   }
 
@@ -145,7 +142,7 @@ class _TouchlessHomeState extends State<TouchlessHome> {
 
   @override
   Widget build(BuildContext context) {
-    final items = TouchlessHome.labels
+    final items = Home.labels
         .map((label) => Text(label))
         .toList(growable: false);
 

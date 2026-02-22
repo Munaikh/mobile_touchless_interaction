@@ -1,21 +1,17 @@
 import 'package:flutter/material.dart';
 
-import '../data/touchless_test_questions.dart';
-import '../models/touchless_task_question.dart';
-import 'touchless_home.dart';
+import '../data/test_questions.dart';
+import '../models/task_question.dart';
+import 'home.dart';
 
-class TouchlessTestSetupPage extends StatelessWidget {
-  const TouchlessTestSetupPage({super.key});
+class TestSetupPage extends StatelessWidget {
+  const TestSetupPage({super.key});
 
   void _startTest(BuildContext context) {
-    final shuffledQuestions = List<TouchlessTaskQuestion>.of(
-      kTouchlessTestQuestions,
-    )..shuffle();
+    final shuffledQuestions = List<TaskQuestion>.of(kTestQuestions)..shuffle();
 
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TouchlessHome(testQuestions: shuffledQuestions),
-      ),
+      MaterialPageRoute(builder: (_) => Home(testQuestions: shuffledQuestions)),
     );
   }
 
