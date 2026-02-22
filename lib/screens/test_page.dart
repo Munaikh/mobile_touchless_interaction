@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../data/test_questions.dart';
@@ -230,7 +231,7 @@ class _TestPageState extends State<TestPage> {
                 child: TouchlessRing(
                   fastDwellDuration: const Duration(seconds: 2),
                   items: items,
-                  showDebugToggle: false,
+                  showDebugToggle: kDebugMode,
                   onActivate: _handleActivation,
                 ),
               ),
