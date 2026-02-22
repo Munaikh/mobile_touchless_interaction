@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../data/test_questions.dart';
 import '../models/task_question.dart';
 import '../widgets/touchless_ring.dart';
-import 'quiz_report_page.dart';
+import 'test_report_page.dart';
 
-class Home extends StatefulWidget {
-  Home({super.key, required List<TaskQuestion> testQuestions})
+class TestPage extends StatefulWidget {
+  TestPage({super.key, required List<TaskQuestion> testQuestions})
     : testQuestions = testQuestions.isEmpty ? kTestQuestions : testQuestions;
 
   final List<TaskQuestion> testQuestions;
@@ -21,10 +21,10 @@ class Home extends StatefulWidget {
   ];
 
   @override
-  State<Home> createState() => _HomeState();
+  State<TestPage> createState() => _TestPageState();
 }
 
-class _HomeState extends State<Home> {
+class _TestPageState extends State<TestPage> {
   late int _currentTaskIndex;
   late List<int> _questionAttempts;
   int _failedAttempts = 0;
@@ -39,7 +39,7 @@ class _HomeState extends State<Home> {
   bool get _isFinished => _currentTaskIndex >= widget.testQuestions.length;
 
   void _handleActivation(int index) {
-    final selectedLabel = Home.labels[index];
+    final selectedLabel = TestPage.labels[index];
     if (_isFinished) {
       _showMessage('Activated $selectedLabel');
       return;
@@ -82,7 +82,7 @@ class _HomeState extends State<Home> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => QuizReportPage(
+        builder: (_) => TestReportPage(
           totalQuestions: widget.testQuestions.length,
           firstAttemptCorrectCount: firstAttemptCorrectCount,
           failedAttempts: _failedAttempts,
@@ -142,7 +142,7 @@ class _HomeState extends State<Home> {
 
   @override
   Widget build(BuildContext context) {
-    final items = Home.labels
+    final items = TestPage.labels
         .map((label) => Text(label))
         .toList(growable: false);
 

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/task_question.dart';
 
-class QuizReportPage extends StatelessWidget {
-  const QuizReportPage({
+class TestReportPage extends StatelessWidget {
+  const TestReportPage({
     super.key,
     required this.totalQuestions,
     required this.firstAttemptCorrectCount,

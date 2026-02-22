@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../data/test_questions.dart';
 import '../models/task_question.dart';
-import 'home.dart';
+import 'test_page.dart';
 
-class TestSetupPage extends StatelessWidget {
-  const TestSetupPage({super.key});
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
 
   void _startTest(BuildContext context) {
     final shuffledQuestions = List<TaskQuestion>.of(kTestQuestions)..shuffle();
 
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => Home(testQuestions: shuffledQuestions)),
+      MaterialPageRoute(
+        builder: (_) => TestPage(testQuestions: shuffledQuestions),
+      ),
     );
   }
 
