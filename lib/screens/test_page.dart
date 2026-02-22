@@ -41,7 +41,6 @@ class _TestPageState extends State<TestPage> {
   void _handleActivation(int index) {
     final selectedLabel = TestPage.labels[index];
     if (_isFinished) {
-      _showMessage('Activated $selectedLabel');
       return;
     }
 
@@ -49,9 +48,6 @@ class _TestPageState extends State<TestPage> {
     final currentTask = widget.testQuestions[_currentTaskIndex];
     if (selectedLabel.toLowerCase() != currentTask.targetLabel.toLowerCase()) {
       _failedAttempts += 1;
-      _showMessage(
-        'Selected $selectedLabel. Current task: ${currentTask.targetLabel}.',
-      );
       return;
     }
 
@@ -59,20 +55,10 @@ class _TestPageState extends State<TestPage> {
     setState(() {
       _currentTaskIndex = nextTask;
     });
-    _showMessage('Correct: $selectedLabel');
 
     if (nextTask >= widget.testQuestions.length) {
       _showReportPage();
     }
-  }
-
-  void _showMessage(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        duration: const Duration(milliseconds: 1000),
-      ),
-    );
   }
 
   void _showReportPage() {
@@ -125,7 +111,7 @@ class _TestPageState extends State<TestPage> {
         children: [
           Text(
             'Question ${_currentTaskIndex + 1}/${widget.testQuestions.length}',
-            style:  TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: colors.onPrimaryContainer,
