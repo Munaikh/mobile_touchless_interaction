@@ -23,14 +23,13 @@ class TestReportPage extends StatelessWidget {
     final firstTryRate = totalQuestions == 0
         ? 0
         : ((firstAttemptCorrectCount / totalQuestions) * 100).round();
-
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFE5ECEB),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: const Color(0xFF256B6A),
+        foregroundColor: colors.primary,
         elevation: 0,
-        title: const Text('Quiz Report'),
+        title: const Text('Test Report'),
       ),
       body: SafeArea(
         child: Padding(
@@ -38,9 +37,9 @@ class TestReportPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Results',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: colors.onPrimaryContainer),
               ),
               const SizedBox(height: 14),
               _StatCard(
@@ -52,9 +51,9 @@ class TestReportPage extends StatelessWidget {
               const SizedBox(height: 10),
               _StatCard(title: 'First-try rate', value: '$firstTryRate%'),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 'Per Question',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: colors.onPrimaryContainer),
               ),
               const SizedBox(height: 10),
               Expanded(
@@ -70,7 +69,7 @@ class TestReportPage extends StatelessWidget {
                     return Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: colors.primaryContainer,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFFD3DEDD)),
                       ),
@@ -79,7 +78,7 @@ class TestReportPage extends StatelessWidget {
                         children: [
                           Text(
                             'Q${index + 1}: ${questions[index].prompt}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -87,9 +86,9 @@ class TestReportPage extends StatelessWidget {
                           const SizedBox(height: 6),
                           Text(
                             statusText,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
-                              color: Color(0xFF285D5C),
+                              color: colors.onPrimaryContainer,
                             ),
                           ),
                         ],
@@ -104,8 +103,13 @@ class TestReportPage extends StatelessWidget {
                 child: FilledButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF256B6A),
+                    backgroundColor: colors.primary,
+                    foregroundColor: colors.onPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   child: const Text('Back to Start'),
                 ),
@@ -126,11 +130,12 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.primaryContainer,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFD3DEDD)),
       ),
@@ -139,15 +144,15 @@ class _StatCard extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.onPrimaryContainer),
             ),
           ),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF256B6A),
+              color: colors.primary,
             ),
           ),
         ],

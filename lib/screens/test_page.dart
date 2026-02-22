@@ -111,11 +111,12 @@ class _TestPageState extends State<TestPage> {
     }
 
     final currentTask = widget.testQuestions[_currentTaskIndex];
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.primaryContainer,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFD3DEDD)),
       ),
@@ -124,10 +125,10 @@ class _TestPageState extends State<TestPage> {
         children: [
           Text(
             'Question ${_currentTaskIndex + 1}/${widget.testQuestions.length}',
-            style: const TextStyle(
+            style:  TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF256B6A),
+              color: colors.onPrimaryContainer,
             ),
           ),
           const SizedBox(height: 5),
@@ -147,7 +148,6 @@ class _TestPageState extends State<TestPage> {
         .toList(growable: false);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE5ECEB),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -170,6 +170,7 @@ class _TestPageState extends State<TestPage> {
                 child: TouchlessRing(
                   fastDwellDuration: const Duration(seconds: 2),
                   items: items,
+                  showDebugToggle: false,
                   onActivate: _handleActivation,
                 ),
               ),
