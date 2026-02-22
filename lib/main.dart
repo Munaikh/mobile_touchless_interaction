@@ -19,6 +19,14 @@ class MainApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
       ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        fontFamily: 'Avenir',
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF256B6A),
+          brightness: Brightness.dark,
+        ),
+      ),
       home: const HomePage(),
     );
   }
