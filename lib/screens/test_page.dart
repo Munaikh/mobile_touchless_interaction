@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../data/test_questions.dart';
 import '../models/task_question.dart';
+import '../models/test_session_result.dart';
 import '../widgets/touchless_ring.dart';
 import 'test_report_page.dart';
 
@@ -75,28 +76,26 @@ class _TestPageState extends State<TestPage> {
     }
     _isCompletingSession = true;
 
-    final firstAttemptCorrectCount = _questionAttempts
-        .where((attemptCount) => attemptCount == 1)
-        .length;
     final completionTime = DateTime.now().difference(_sessionStartTime);
     final failedAttempts = _wrongTargetActivations;
+    final result = TestSessionResult.fromSession(
+      completedAt: DateTime.now(),
+      completionTime: completionTime,
+      wrongTargetActivations: _wrongTargetActivations,
+      failedAttempts: failedAttempts,
+      questions: widget.testQuestions,
+      attemptsPerQuestion: List<int>.from(_questionAttempts),
+      customMetrics: <String, Object?>{
+        'sessionStartIso': _sessionStartTime.toIso8601String(),
+      },
+    );
 
     if (!mounted) {
       return;
     }
 
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => TestReportPage(
-          totalQuestions: widget.testQuestions.length,
-          completionTime: completionTime,
-          firstAttemptCorrectCount: firstAttemptCorrectCount,
-          wrongTargetActivations: _wrongTargetActivations,
-          failedAttempts: failedAttempts,
-          questions: widget.testQuestions,
-          attemptsPerQuestion: _questionAttempts,
-        ),
-      ),
+      MaterialPageRoute(builder: (_) => TestReportPage(result: result)),
     );
   }
 

@@ -1,38 +1,28 @@
-import 'package:flutter/material.dart';
-import 'package:mobile_touchless_interaction/widgets/stat_card.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 
-import '../models/task_question.dart';
+import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../models/test_session_result.dart';
+import '../widgets/stat_card.dart';
 
 class TestReportPage extends StatefulWidget {
-  const TestReportPage({
-    super.key,
-    required this.totalQuestions,
-    required this.completionTime,
-    required this.firstAttemptCorrectCount,
-    required this.wrongTargetActivations,
-    required this.failedAttempts,
-    required this.questions,
-    required this.attemptsPerQuestion,
-  });
+  const TestReportPage({super.key, required this.result});
 
-  final int totalQuestions;
-  final Duration completionTime;
-  final int firstAttemptCorrectCount;
-  final int wrongTargetActivations;
-  final int failedAttempts;
-  final List<TaskQuestion> questions;
-  final List<int> attemptsPerQuestion;
+  final TestSessionResult result;
 
   @override
   State<TestReportPage> createState() => _TestReportPageState();
 }
 
 class _TestReportPageState extends State<TestReportPage> {
-  int? _seqEaseRating;
+  late TestSessionResult _result;
 
   @override
   void initState() {
     super.initState();
+    _result = widget.result;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showSeqRatingDialog();
     });
@@ -45,8 +35,47 @@ class _TestReportPageState extends State<TestReportPage> {
     }
 
     setState(() {
-      _seqEaseRating = rating;
+      _result = _result.copyWith(seqEaseRating: rating);
     });
+  }
+
+  Future<void> _shareResultsAsJson(BuildContext originContext) async {
+    final payload = _result.toPrettyJson();
+    final fileNameSafeTimestamp = _result.completedAt
+        .toIso8601String()
+        .replaceAll(':', '-');
+    final fileName = 'touchless_results_$fileNameSafeTimestamp.json';
+    final fileBytes = Uint8List.fromList(utf8.encode(payload));
+    final renderBox = originContext.findRenderObject() as RenderBox?;
+    final shareOrigin =
+        renderBox != null &&
+            renderBox.hasSize &&
+            renderBox.size.width > 0 &&
+            renderBox.size.height > 0
+        ? renderBox.localToGlobal(Offset.zero) & renderBox.size
+        : const Rect.fromLTWH(0, 0, 1, 1);
+
+    try {
+      await Share.shareXFiles(
+        <XFile>[
+          XFile.fromData(
+            fileBytes,
+            mimeType: 'application/json',
+            name: fileName,
+          ),
+        ],
+        subject: 'Touchless Hover Test Results (JSON)',
+        text: 'Touchless Hover test results exported as JSON.',
+        sharePositionOrigin: shareOrigin,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to share results: $error')),
+      );
+    }
   }
 
   Future<int> _promptSeqEaseRating() async {
@@ -108,17 +137,6 @@ class _TestReportPageState extends State<TestReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final firstTryRate = widget.totalQuestions == 0
-        ? 0
-        : ((widget.firstAttemptCorrectCount / widget.totalQuestions) * 100)
-              .round();
-    final totalAttempts = widget.attemptsPerQuestion.fold<int>(
-      0,
-      (sum, attempts) => sum + attempts,
-    );
-    final attemptsPerTrial = widget.totalQuestions == 0
-        ? 0.0
-        : totalAttempts / widget.totalQuestions;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
@@ -126,6 +144,19 @@ class _TestReportPageState extends State<TestReportPage> {
         foregroundColor: colors.primary,
         elevation: 0,
         title: const Text('Test Report'),
+        actions: [
+          Builder(
+            builder: (buttonContext) {
+              return IconButton(
+                tooltip: 'Share JSON',
+                icon: const Icon(Icons.share),
+                onPressed: () async {
+                  await _shareResultsAsJson(buttonContext);
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -146,35 +177,38 @@ class _TestReportPageState extends State<TestReportPage> {
                 StatCard(
                   title: 'First-attempt correct',
                   value:
-                      '${widget.firstAttemptCorrectCount} / ${widget.totalQuestions}',
+                      '${_result.firstAttemptCorrectCount} / ${_result.totalQuestions}',
                 ),
                 const SizedBox(height: 10),
                 StatCard(
                   title: 'Completion time',
-                  value: _formatDuration(widget.completionTime),
+                  value: _formatDuration(_result.completionTime),
                 ),
                 const SizedBox(height: 10),
                 StatCard(
                   title: 'Wrong-target activations',
-                  value: '${widget.wrongTargetActivations}',
+                  value: '${_result.wrongTargetActivations}',
                 ),
                 const SizedBox(height: 10),
                 StatCard(
                   title: 'Attempts per trial',
-                  value: attemptsPerTrial.toStringAsFixed(2),
+                  value: _result.attemptsPerTrial.toStringAsFixed(2),
                 ),
                 const SizedBox(height: 10),
                 StatCard(
                   title: 'SEQ (1-7 ease)',
-                  value: _seqEaseRating?.toString() ?? '-',
+                  value: _result.seqEaseRating?.toString() ?? '-',
                 ),
                 const SizedBox(height: 10),
                 StatCard(
                   title: 'Failed attempts',
-                  value: '${widget.failedAttempts}',
+                  value: '${_result.failedAttempts}',
                 ),
                 const SizedBox(height: 10),
-                StatCard(title: 'First-try rate', value: '$firstTryRate%'),
+                StatCard(
+                  title: 'First-try rate',
+                  value: '${_result.firstTryRatePercent}%',
+                ),
                 const SizedBox(height: 18),
                 Text(
                   'Per Question',
@@ -185,13 +219,10 @@ class _TestReportPageState extends State<TestReportPage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                ...widget.questions.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final question = entry.value;
-                  final attempts = widget.attemptsPerQuestion[index];
-                  final statusText = attempts == 1
+                ..._result.questionResults.map((questionResult) {
+                  final statusText = questionResult.firstAttemptCorrect
                       ? 'Correct on first attempt'
-                      : 'Solved in $attempts attempts';
+                      : 'Solved in ${questionResult.attempts} attempts';
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -206,7 +237,7 @@ class _TestReportPageState extends State<TestReportPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Q${index + 1}: ${question.prompt}',
+                            'Q${questionResult.index}: ${questionResult.prompt}',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
