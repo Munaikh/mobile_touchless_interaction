@@ -378,7 +378,9 @@ class _TouchlessRingState extends State<TouchlessRing>
             ),
           ],
           border: Border.all(
-            color: isHovered ? const Color(0xFF1F5957) : const Color(0xFFE0E6E6),
+            color: isHovered
+                ? const Color(0xFF1F5957)
+                : const Color(0xFFE0E6E6),
             width: isHovered ? 2 : 1,
           ),
         ),
