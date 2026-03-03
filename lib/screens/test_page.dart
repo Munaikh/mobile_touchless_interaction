@@ -28,6 +28,8 @@ class _TestPageState extends State<TestPage> {
   late List<int> _phaseWrongTargetActivations;
   late List<DateTime> _phaseStartTimes;
   late List<DateTime?> _phaseCompletedAt;
+  late List<List<DateTime?>> _phaseTrialStartedAt;
+  late List<List<DateTime?>> _phaseTrialCompletedAt;
   int _currentPhaseIndex = 0;
   int _currentTaskIndex = 0;
   bool _isCompletingSession = false;
@@ -60,7 +62,22 @@ class _TestPageState extends State<TestPage> {
       null,
       growable: false,
     );
+    _phaseTrialStartedAt = _phaseQuestions
+        .map(
+          (questions) =>
+              List<DateTime?>.filled(questions.length, null, growable: false),
+        )
+        .toList(growable: false);
+    _phaseTrialCompletedAt = _phaseQuestions
+        .map(
+          (questions) =>
+              List<DateTime?>.filled(questions.length, null, growable: false),
+        )
+        .toList(growable: false);
     _phaseStartTimes[0] = _abTestStartTime;
+    if (_phaseTrialStartedAt.isNotEmpty && _phaseTrialStartedAt[0].isNotEmpty) {
+      _phaseTrialStartedAt[0][0] = _abTestStartTime;
+    }
   }
 
   List<TaskQuestion> get _activeQuestions =>
@@ -84,15 +101,18 @@ class _TestPageState extends State<TestPage> {
       return;
     }
 
+    final solvedAt = DateTime.now();
+    _phaseTrialCompletedAt[_currentPhaseIndex][_currentTaskIndex] = solvedAt;
     final nextTask = _currentTaskIndex + 1;
     if (nextTask < _activeQuestions.length) {
+      _phaseTrialStartedAt[_currentPhaseIndex][nextTask] ??= solvedAt;
       setState(() {
         _currentTaskIndex = nextTask;
       });
       return;
     }
 
-    final phaseCompletedAt = DateTime.now();
+    final phaseCompletedAt = solvedAt;
     _phaseCompletedAt[_currentPhaseIndex] = phaseCompletedAt;
 
     final hasNextPhase = _currentPhaseIndex + 1 < _phaseDwellDurations.length;
@@ -107,6 +127,9 @@ class _TestPageState extends State<TestPage> {
       _currentPhaseIndex = nextPhaseIndex;
       _currentTaskIndex = 0;
       _phaseStartTimes[nextPhaseIndex] = phaseCompletedAt;
+      if (_phaseTrialStartedAt[nextPhaseIndex].isNotEmpty) {
+        _phaseTrialStartedAt[nextPhaseIndex][0] = phaseCompletedAt;
+      }
     });
 
     if (!mounted) {
@@ -144,6 +167,8 @@ class _TestPageState extends State<TestPage> {
           failedAttempts: _phaseWrongTargetActivations[index],
           questions: _phaseQuestions[index],
           attemptsPerQuestion: List<int>.from(_phaseAttempts[index]),
+          trialStartedAt: List<DateTime?>.from(_phaseTrialStartedAt[index]),
+          trialCompletedAt: List<DateTime?>.from(_phaseTrialCompletedAt[index]),
           customMetrics: <String, Object?>{
             'sessionStartIso': phaseStart.toIso8601String(),
             'phaseOrder': index + 1,

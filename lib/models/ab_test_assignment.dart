@@ -19,15 +19,6 @@ extension AbTestAssignmentX on AbTestAssignment {
     }
   }
 
-  String get description {
-    switch (this) {
-      case AbTestAssignment.testOne:
-        return '2-second dwell, then 1-second dwell';
-      case AbTestAssignment.testTwo:
-        return '1-second dwell, then 2-second dwell';
-    }
-  }
-
   List<Duration> get dwellSequence {
     switch (this) {
       case AbTestAssignment.testOne:
@@ -41,7 +32,6 @@ extension AbTestAssignmentX on AbTestAssignment {
     return <String, Object?>{
       'id': id,
       'title': title,
-      'description': description,
       'dwellSequenceSeconds': dwellSequence
           .map((duration) => duration.inMilliseconds / 1000)
           .toList(growable: false),

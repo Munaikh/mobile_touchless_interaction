@@ -8,14 +8,26 @@ class QuestionResult {
     required this.prompt,
     required this.targetLabel,
     required this.attempts,
+    this.trialStartedAt,
+    this.trialCompletedAt,
   });
 
   final int index;
   final String prompt;
   final String targetLabel;
   final int attempts;
+  final DateTime? trialStartedAt;
+  final DateTime? trialCompletedAt;
 
   bool get firstAttemptCorrect => attempts == 1;
+  int? get trialDurationMs {
+    final start = trialStartedAt;
+    final end = trialCompletedAt;
+    if (start == null || end == null) {
+      return null;
+    }
+    return end.difference(start).inMilliseconds;
+  }
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -24,6 +36,9 @@ class QuestionResult {
       'targetLabel': targetLabel,
       'attempts': attempts,
       'firstAttemptCorrect': firstAttemptCorrect,
+      'trialStartedAtIso': trialStartedAt?.toIso8601String(),
+      'trialCompletedAtIso': trialCompletedAt?.toIso8601String(),
+      'trialDurationMs': trialDurationMs,
     };
   }
 }
@@ -37,7 +52,6 @@ class TestSessionResult {
     required this.wrongTargetActivations,
     required this.failedAttempts,
     required this.questionResults,
-    this.seqEaseRating,
     this.customMetrics = const <String, Object?>{},
   });
 
@@ -48,7 +62,8 @@ class TestSessionResult {
     required int failedAttempts,
     required List<TaskQuestion> questions,
     required List<int> attemptsPerQuestion,
-    int? seqEaseRating,
+    List<DateTime?> trialStartedAt = const <DateTime?>[],
+    List<DateTime?> trialCompletedAt = const <DateTime?>[],
     Map<String, Object?> customMetrics = const <String, Object?>{},
   }) {
     final questionResults = List<QuestionResult>.generate(questions.length, (
@@ -58,11 +73,19 @@ class TestSessionResult {
       final attempts = index < attemptsPerQuestion.length
           ? attemptsPerQuestion[index]
           : 0;
+      final startedAt = index < trialStartedAt.length
+          ? trialStartedAt[index]
+          : null;
+      final completedAt = index < trialCompletedAt.length
+          ? trialCompletedAt[index]
+          : null;
       return QuestionResult(
         index: index + 1,
         prompt: question.prompt,
         targetLabel: question.targetLabel,
         attempts: attempts,
+        trialStartedAt: startedAt,
+        trialCompletedAt: completedAt,
       );
     }, growable: false);
 
@@ -78,7 +101,6 @@ class TestSessionResult {
       wrongTargetActivations: wrongTargetActivations,
       failedAttempts: failedAttempts,
       questionResults: questionResults,
-      seqEaseRating: seqEaseRating,
       customMetrics: customMetrics,
     );
   }
@@ -89,7 +111,6 @@ class TestSessionResult {
   final int firstAttemptCorrectCount;
   final int wrongTargetActivations;
   final int failedAttempts;
-  final int? seqEaseRating;
   final List<QuestionResult> questionResults;
   final Map<String, Object?> customMetrics;
 
@@ -114,23 +135,6 @@ class TestSessionResult {
     return totalAttempts / totalQuestions;
   }
 
-  TestSessionResult copyWith({
-    int? seqEaseRating,
-    Map<String, Object?>? customMetrics,
-  }) {
-    return TestSessionResult(
-      completedAt: completedAt,
-      completionTime: completionTime,
-      totalQuestions: totalQuestions,
-      firstAttemptCorrectCount: firstAttemptCorrectCount,
-      wrongTargetActivations: wrongTargetActivations,
-      failedAttempts: failedAttempts,
-      questionResults: questionResults,
-      seqEaseRating: seqEaseRating ?? this.seqEaseRating,
-      customMetrics: customMetrics ?? this.customMetrics,
-    );
-  }
-
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'schemaVersion': 1,
@@ -143,7 +147,9 @@ class TestSessionResult {
       'failedAttempts': failedAttempts,
       'totalAttempts': totalAttempts,
       'attemptsPerTrial': attemptsPerTrial,
-      'seqEaseRating': seqEaseRating,
+      'trialDurationsMs': questionResults
+          .map((questionResult) => questionResult.trialDurationMs)
+          .toList(growable: false),
       'customMetrics': customMetrics.map(
         (key, value) => MapEntry(key, _normalizeMetricValue(value)),
       ),
