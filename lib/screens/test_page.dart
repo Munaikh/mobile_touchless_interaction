@@ -25,11 +25,14 @@ class _TestPageState extends State<TestPage> {
   late List<Duration> _phaseDwellDurations;
   late List<List<TaskQuestion>> _phaseQuestions;
   late List<List<int>> _phaseAttempts;
+  late List<List<int>> _phaseTargetSwitchCounts;
+  late List<List<int>> _phaseCancelCounts;
   late List<int> _phaseWrongTargetActivations;
   late List<DateTime> _phaseStartTimes;
   late List<DateTime?> _phaseCompletedAt;
   late List<List<DateTime?>> _phaseTrialStartedAt;
   late List<List<DateTime?>> _phaseTrialCompletedAt;
+  int? _trialHoveredIndex;
   int _currentPhaseIndex = 0;
   int _currentTaskIndex = 0;
   bool _isCompletingSession = false;
@@ -45,6 +48,12 @@ class _TestPageState extends State<TestPage> {
       growable: false,
     );
     _phaseAttempts = _phaseQuestions
+        .map((questions) => List<int>.filled(questions.length, 0))
+        .toList(growable: false);
+    _phaseTargetSwitchCounts = _phaseQuestions
+        .map((questions) => List<int>.filled(questions.length, 0))
+        .toList(growable: false);
+    _phaseCancelCounts = _phaseQuestions
         .map((questions) => List<int>.filled(questions.length, 0))
         .toList(growable: false);
     _phaseWrongTargetActivations = List<int>.filled(
@@ -84,6 +93,28 @@ class _TestPageState extends State<TestPage> {
       _phaseQuestions[_currentPhaseIndex];
   Duration get _activeDwellDuration => _phaseDwellDurations[_currentPhaseIndex];
 
+  void _handleHoverChanged(int? hoveredIndex) {
+    if (_isCompletingSession || _currentTaskIndex >= _activeQuestions.length) {
+      _trialHoveredIndex = hoveredIndex;
+      return;
+    }
+
+    final previousHoveredIndex = _trialHoveredIndex;
+    if (previousHoveredIndex == hoveredIndex) {
+      return;
+    }
+
+    if (previousHoveredIndex != null && hoveredIndex == null) {
+      _phaseCancelCounts[_currentPhaseIndex][_currentTaskIndex] += 1;
+    } else if (previousHoveredIndex != null &&
+        hoveredIndex != null &&
+        previousHoveredIndex != hoveredIndex) {
+      _phaseTargetSwitchCounts[_currentPhaseIndex][_currentTaskIndex] += 1;
+    }
+
+    _trialHoveredIndex = hoveredIndex;
+  }
+
   void _handleActivation(int index) {
     if (_isCompletingSession) {
       return;
@@ -103,6 +134,7 @@ class _TestPageState extends State<TestPage> {
 
     final solvedAt = DateTime.now();
     _phaseTrialCompletedAt[_currentPhaseIndex][_currentTaskIndex] = solvedAt;
+    _trialHoveredIndex = index;
     final nextTask = _currentTaskIndex + 1;
     if (nextTask < _activeQuestions.length) {
       _phaseTrialStartedAt[_currentPhaseIndex][nextTask] ??= solvedAt;
@@ -131,6 +163,7 @@ class _TestPageState extends State<TestPage> {
         _phaseTrialStartedAt[nextPhaseIndex][0] = phaseCompletedAt;
       }
     });
+    _trialHoveredIndex = null;
 
     if (!mounted) {
       return;
@@ -167,6 +200,10 @@ class _TestPageState extends State<TestPage> {
           failedAttempts: _phaseWrongTargetActivations[index],
           questions: _phaseQuestions[index],
           attemptsPerQuestion: List<int>.from(_phaseAttempts[index]),
+          targetSwitchesPerQuestion: List<int>.from(
+            _phaseTargetSwitchCounts[index],
+          ),
+          cancelCountsPerQuestion: List<int>.from(_phaseCancelCounts[index]),
           trialStartedAt: List<DateTime?>.from(_phaseTrialStartedAt[index]),
           trialCompletedAt: List<DateTime?>.from(_phaseTrialCompletedAt[index]),
           customMetrics: <String, Object?>{
@@ -278,6 +315,7 @@ class _TestPageState extends State<TestPage> {
                   fastDwellDuration: _activeDwellDuration,
                   items: items,
                   showDebugToggle: kDebugMode,
+                  onHoverChanged: _handleHoverChanged,
                   onActivate: _handleActivation,
                 ),
               ),

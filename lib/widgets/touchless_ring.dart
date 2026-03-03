@@ -21,6 +21,7 @@ class TouchlessRing extends StatefulWidget {
     required this.items,
     this.itemBuilder,
     this.onActivate,
+    this.onHoverChanged,
     this.dwellDuration = const Duration(milliseconds: 1100),
     this.fastDwellDuration = const Duration(milliseconds: 1100),
     this.activationCooldown = const Duration(milliseconds: 1200),
@@ -32,6 +33,7 @@ class TouchlessRing extends StatefulWidget {
   final List<Widget> items;
   final TouchlessRingItemBuilder? itemBuilder;
   final ValueChanged<int>? onActivate;
+  final ValueChanged<int?>? onHoverChanged;
   final Duration dwellDuration;
   final Duration fastDwellDuration;
   final Duration activationCooldown;
@@ -332,6 +334,7 @@ class _TouchlessRingState extends State<TouchlessRing>
     }
 
     _hoveredIndex = index;
+    widget.onHoverChanged?.call(_hoveredIndex);
     _dwellTimer?.cancel();
     _hoverStartTime = null;
     _activeDwellDuration = null;

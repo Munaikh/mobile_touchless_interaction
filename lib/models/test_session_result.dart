@@ -8,6 +8,8 @@ class QuestionResult {
     required this.prompt,
     required this.targetLabel,
     required this.attempts,
+    required this.targetSwitchCount,
+    required this.cancelCount,
     this.trialStartedAt,
     this.trialCompletedAt,
   });
@@ -16,6 +18,8 @@ class QuestionResult {
   final String prompt;
   final String targetLabel;
   final int attempts;
+  final int targetSwitchCount;
+  final int cancelCount;
   final DateTime? trialStartedAt;
   final DateTime? trialCompletedAt;
 
@@ -36,6 +40,8 @@ class QuestionResult {
       'targetLabel': targetLabel,
       'attempts': attempts,
       'firstAttemptCorrect': firstAttemptCorrect,
+      'targetSwitchCount': targetSwitchCount,
+      'cancelCount': cancelCount,
       'trialStartedAtIso': trialStartedAt?.toIso8601String(),
       'trialCompletedAtIso': trialCompletedAt?.toIso8601String(),
       'trialDurationMs': trialDurationMs,
@@ -62,6 +68,8 @@ class TestSessionResult {
     required int failedAttempts,
     required List<TaskQuestion> questions,
     required List<int> attemptsPerQuestion,
+    List<int> targetSwitchesPerQuestion = const <int>[],
+    List<int> cancelCountsPerQuestion = const <int>[],
     List<DateTime?> trialStartedAt = const <DateTime?>[],
     List<DateTime?> trialCompletedAt = const <DateTime?>[],
     Map<String, Object?> customMetrics = const <String, Object?>{},
@@ -72,6 +80,12 @@ class TestSessionResult {
       final question = questions[index];
       final attempts = index < attemptsPerQuestion.length
           ? attemptsPerQuestion[index]
+          : 0;
+      final targetSwitchCount = index < targetSwitchesPerQuestion.length
+          ? targetSwitchesPerQuestion[index]
+          : 0;
+      final cancelCount = index < cancelCountsPerQuestion.length
+          ? cancelCountsPerQuestion[index]
           : 0;
       final startedAt = index < trialStartedAt.length
           ? trialStartedAt[index]
@@ -84,6 +98,8 @@ class TestSessionResult {
         prompt: question.prompt,
         targetLabel: question.targetLabel,
         attempts: attempts,
+        targetSwitchCount: targetSwitchCount,
+        cancelCount: cancelCount,
         trialStartedAt: startedAt,
         trialCompletedAt: completedAt,
       );
@@ -149,6 +165,12 @@ class TestSessionResult {
       'attemptsPerTrial': attemptsPerTrial,
       'trialDurationsMs': questionResults
           .map((questionResult) => questionResult.trialDurationMs)
+          .toList(growable: false),
+      'targetSwitchCountsPerTrial': questionResults
+          .map((questionResult) => questionResult.targetSwitchCount)
+          .toList(growable: false),
+      'cancelCountsPerTrial': questionResults
+          .map((questionResult) => questionResult.cancelCount)
           .toList(growable: false),
       'customMetrics': customMetrics.map(
         (key, value) => MapEntry(key, _normalizeMetricValue(value)),
