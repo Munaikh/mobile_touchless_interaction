@@ -4,44 +4,22 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../models/ab_test_assignment.dart';
+import '../models/ab_test_result.dart';
 import '../models/test_session_result.dart';
 import '../widgets/stat_card.dart';
 
-class TestReportPage extends StatefulWidget {
+class TestReportPage extends StatelessWidget {
   const TestReportPage({super.key, required this.result});
 
-  final TestSessionResult result;
+  final AbTestResult result;
 
-  @override
-  State<TestReportPage> createState() => _TestReportPageState();
-}
-
-class _TestReportPageState extends State<TestReportPage> {
-  late TestSessionResult _result;
-
-  @override
-  void initState() {
-    super.initState();
-    _result = widget.result;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showSeqRatingDialog();
-    });
-  }
-
-  Future<void> _showSeqRatingDialog() async {
-    final rating = await _promptSeqEaseRating();
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _result = _result.copyWith(seqEaseRating: rating);
-    });
-  }
-
-  Future<void> _shareResultsAsJson(BuildContext originContext) async {
-    final payload = _result.toPrettyJson();
-    final fileNameSafeTimestamp = _result.completedAt
+  Future<void> _shareResultsAsJson(
+    BuildContext pageContext,
+    BuildContext originContext,
+  ) async {
+    final payload = result.toPrettyJson();
+    final fileNameSafeTimestamp = result.completedAt
         .toIso8601String()
         .replaceAll(':', '-');
     final fileName = 'touchless_results_$fileNameSafeTimestamp.json';
@@ -64,69 +42,18 @@ class _TestReportPageState extends State<TestReportPage> {
             name: fileName,
           ),
         ],
-        subject: 'Touchless Hover Test Results (JSON)',
-        text: 'Touchless Hover test results exported as JSON.',
+        subject: 'Touchless Hover A/B Test Results (JSON)',
+        text: 'Touchless Hover A/B test results exported as JSON.',
         sharePositionOrigin: shareOrigin,
       );
     } catch (error) {
-      if (!mounted) {
+      if (!pageContext.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(pageContext).showSnackBar(
         SnackBar(content: Text('Unable to share results: $error')),
       );
     }
-  }
-
-  Future<int> _promptSeqEaseRating() async {
-    var selectedRating = 4;
-    final result = await showDialog<int>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('SEQ Rating'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Overall, how easy was this test? (1 = hard, 7 = easy)',
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: List.generate(7, (index) {
-                      final value = index + 1;
-                      return ChoiceChip(
-                        label: Text('$value'),
-                        selected: selectedRating == value,
-                        onSelected: (_) {
-                          setDialogState(() {
-                            selectedRating = value;
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                ],
-              ),
-              actions: [
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(selectedRating),
-                  child: const Text('Continue'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    return result ?? selectedRating;
   }
 
   String _formatDuration(Duration duration) {
@@ -135,15 +62,123 @@ class _TestReportPageState extends State<TestReportPage> {
     return '${minutes}m ${seconds.toString().padLeft(2, '0')}s';
   }
 
+  Widget _buildQuestionCard({
+    required QuestionResult questionResult,
+    required ColorScheme colors,
+  }) {
+    final statusText = questionResult.firstAttemptCorrect
+        ? 'Correct on first attempt'
+        : 'Solved in ${questionResult.attempts} attempts';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFD3DEDD)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Q${questionResult.index}: ${questionResult.prompt}',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              statusText,
+              style: TextStyle(fontSize: 13, color: colors.onPrimaryContainer),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhaseSection({
+    required DwellPhaseResult phaseResult,
+    required ColorScheme colors,
+  }) {
+    final session = phaseResult.sessionResult;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD3DEDD)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Round ${phaseResult.phaseOrder}',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: colors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 10),
+          StatCard(
+            title: 'First-attempt correct',
+            value:
+                '${session.firstAttemptCorrectCount} / ${session.totalQuestions}',
+          ),
+          const SizedBox(height: 10),
+          StatCard(
+            title: 'First-try rate',
+            value: '${session.firstTryRatePercent}%',
+          ),
+          const SizedBox(height: 10),
+          StatCard(
+            title: 'Completion time',
+            value: _formatDuration(session.completionTime),
+          ),
+          const SizedBox(height: 10),
+          StatCard(
+            title: 'Wrong-target activations',
+            value: '${session.wrongTargetActivations}',
+          ),
+          const SizedBox(height: 10),
+          StatCard(
+            title: 'Attempts per trial',
+            value: session.attemptsPerTrial.toStringAsFixed(2),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Per Question',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...session.questionResults.map((questionResult) {
+            return _buildQuestionCard(
+              questionResult: questionResult,
+              colors: colors,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         foregroundColor: colors.primary,
         elevation: 0,
-        title: const Text('Test Report'),
+        title: const Text('A/B Test Report'),
         actions: [
           Builder(
             builder: (buttonContext) {
@@ -151,7 +186,7 @@ class _TestReportPageState extends State<TestReportPage> {
                 tooltip: 'Share JSON',
                 icon: const Icon(Icons.share),
                 onPressed: () async {
-                  await _shareResultsAsJson(buttonContext);
+                  await _shareResultsAsJson(context, buttonContext);
                 },
               );
             },
@@ -175,85 +210,18 @@ class _TestReportPageState extends State<TestReportPage> {
                 ),
                 const SizedBox(height: 14),
                 StatCard(
-                  title: 'First-attempt correct',
-                  value:
-                      '${_result.firstAttemptCorrectCount} / ${_result.totalQuestions}',
+                  title: 'Test Assignment',
+                  value: result.assignment.title,
                 ),
                 const SizedBox(height: 10),
                 StatCard(
-                  title: 'Completion time',
-                  value: _formatDuration(_result.completionTime),
+                  title: 'Total completion time',
+                  value: _formatDuration(result.totalCompletionTime),
                 ),
-                const SizedBox(height: 10),
-                StatCard(
-                  title: 'Wrong-target activations',
-                  value: '${_result.wrongTargetActivations}',
-                ),
-                const SizedBox(height: 10),
-                StatCard(
-                  title: 'Attempts per trial',
-                  value: _result.attemptsPerTrial.toStringAsFixed(2),
-                ),
-                const SizedBox(height: 10),
-                StatCard(
-                  title: 'SEQ (1-7 ease)',
-                  value: _result.seqEaseRating?.toString() ?? '-',
-                ),
-                const SizedBox(height: 10),
-                StatCard(
-                  title: 'Failed attempts',
-                  value: '${_result.failedAttempts}',
-                ),
-                const SizedBox(height: 10),
-                StatCard(
-                  title: 'First-try rate',
-                  value: '${_result.firstTryRatePercent}%',
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Per Question',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onPrimaryContainer,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ..._result.questionResults.map((questionResult) {
-                  final statusText = questionResult.firstAttemptCorrect
-                      ? 'Correct on first attempt'
-                      : 'Solved in ${questionResult.attempts} attempts';
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: colors.primaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFD3DEDD)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Q${questionResult.index}: ${questionResult.prompt}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            statusText,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: colors.onPrimaryContainer,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                ...result.phaseResults.map((phaseResult) {
+                  return _buildPhaseSection(
+                    phaseResult: phaseResult,
+                    colors: colors,
                   );
                 }),
                 const SizedBox(height: 12),

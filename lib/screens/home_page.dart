@@ -1,19 +1,89 @@
 import 'package:flutter/material.dart';
 
-import '../data/test_questions.dart';
-import '../models/task_question.dart';
+import '../models/ab_test_assignment.dart';
 import 'test_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  void _startTest(BuildContext context) {
-    final shuffledQuestions = List<TaskQuestion>.of(kTestQuestions)..shuffle();
+  Future<AbTestAssignment?> _showTestSelectionDialog(
+    BuildContext context,
+  ) async {
+    return showDialog<AbTestAssignment>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Choose Test Order'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTestChoice(
+                context: dialogContext,
+                assignment: AbTestAssignment.testOne,
+              ),
+              const SizedBox(height: 8),
+              _buildTestChoice(
+                context: dialogContext,
+                assignment: AbTestAssignment.testTwo,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TestPage(testQuestions: shuffledQuestions),
+  Widget _buildTestChoice({
+    required BuildContext context,
+    required AbTestAssignment assignment,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: () => Navigator.of(context).pop(assignment),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: colors.primaryContainer.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFD3DEDD)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              assignment.title,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Tap to start',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.primary,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Future<void> _startTest(BuildContext context) async {
+    final assignment = await _showTestSelectionDialog(context);
+    if (assignment == null) {
+      return;
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TestPage(testAssignment: assignment)),
     );
   }
 
@@ -33,7 +103,7 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               const Text(
-                'Press Start Test to run a randomized 3-question task set.',
+                'Press Start Test, then choose Test One or Test Two.',
                 style: TextStyle(fontSize: 15, height: 1.4),
               ),
               const SizedBox(height: 22),
@@ -43,19 +113,21 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'You will be asked to select a specific button on the screen by hovering over it for ~2 seconds.',
+                'Each phase has 6 questions (all buttons once) in random order.',
                 style: const TextStyle(fontSize: 15),
               ),
               const SizedBox(height: 8),
               Text(
-                'Try to be as accurate as possible. If you select the wrong button, you can try again until you get it right.',
+                'Try to be as accurate as possible. Wrong selections are counted and you can retry until correct.',
                 style: const TextStyle(fontSize: 15),
               ),
               const Spacer(),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => _startTest(context),
+                  onPressed: () async {
+                    await _startTest(context);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF256B6A),
                     foregroundColor: Colors.white,

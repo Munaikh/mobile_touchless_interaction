@@ -2,72 +2,124 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../data/test_questions.dart';
+import '../models/ab_test_assignment.dart';
+import '../models/ab_test_result.dart';
 import '../models/task_question.dart';
 import '../models/test_session_result.dart';
 import '../widgets/touchless_ring.dart';
 import 'test_report_page.dart';
 
 class TestPage extends StatefulWidget {
-  TestPage({super.key, required List<TaskQuestion> testQuestions})
-    : testQuestions = testQuestions.isEmpty ? kTestQuestions : testQuestions;
+  const TestPage({super.key, required this.testAssignment});
 
-  final List<TaskQuestion> testQuestions;
+  final AbTestAssignment testAssignment;
 
-  static const List<String> labels = [
-    'Call',
-    'Music',
-    'Map',
-    'Camera',
-    'Message',
-    'Torch',
-  ];
+  static const List<String> labels = kButtonLabels;
 
   @override
   State<TestPage> createState() => _TestPageState();
 }
 
 class _TestPageState extends State<TestPage> {
-  late int _currentTaskIndex;
-  late List<int> _questionAttempts;
-  late DateTime _sessionStartTime;
-  int _wrongTargetActivations = 0;
+  late DateTime _abTestStartTime;
+  late List<Duration> _phaseDwellDurations;
+  late List<List<TaskQuestion>> _phaseQuestions;
+  late List<List<int>> _phaseAttempts;
+  late List<int> _phaseWrongTargetActivations;
+  late List<DateTime> _phaseStartTimes;
+  late List<DateTime?> _phaseCompletedAt;
+  int _currentPhaseIndex = 0;
+  int _currentTaskIndex = 0;
   bool _isCompletingSession = false;
 
   @override
   void initState() {
     super.initState();
-    _currentTaskIndex = 0;
-    _questionAttempts = List<int>.filled(widget.testQuestions.length, 0);
-    _sessionStartTime = DateTime.now();
+    _abTestStartTime = DateTime.now();
+    _phaseDwellDurations = widget.testAssignment.dwellSequence;
+    _phaseQuestions = List<List<TaskQuestion>>.generate(
+      _phaseDwellDurations.length,
+      (_) => buildShuffledQuestionSet(),
+      growable: false,
+    );
+    _phaseAttempts = _phaseQuestions
+        .map((questions) => List<int>.filled(questions.length, 0))
+        .toList(growable: false);
+    _phaseWrongTargetActivations = List<int>.filled(
+      _phaseDwellDurations.length,
+      0,
+      growable: false,
+    );
+    _phaseStartTimes = List<DateTime>.filled(
+      _phaseDwellDurations.length,
+      _abTestStartTime,
+      growable: false,
+    );
+    _phaseCompletedAt = List<DateTime?>.filled(
+      _phaseDwellDurations.length,
+      null,
+      growable: false,
+    );
+    _phaseStartTimes[0] = _abTestStartTime;
   }
 
-  bool get _isFinished => _currentTaskIndex >= widget.testQuestions.length;
+  List<TaskQuestion> get _activeQuestions =>
+      _phaseQuestions[_currentPhaseIndex];
+  Duration get _activeDwellDuration => _phaseDwellDurations[_currentPhaseIndex];
 
   void _handleActivation(int index) {
     if (_isCompletingSession) {
       return;
     }
 
-    final selectedLabel = TestPage.labels[index];
-    if (_isFinished) {
+    if (_currentTaskIndex >= _activeQuestions.length) {
       return;
     }
 
-    _questionAttempts[_currentTaskIndex] += 1;
-    final currentTask = widget.testQuestions[_currentTaskIndex];
+    final selectedLabel = TestPage.labels[index];
+    _phaseAttempts[_currentPhaseIndex][_currentTaskIndex] += 1;
+    final currentTask = _activeQuestions[_currentTaskIndex];
     if (selectedLabel.toLowerCase() != currentTask.targetLabel.toLowerCase()) {
-      _wrongTargetActivations += 1;
+      _phaseWrongTargetActivations[_currentPhaseIndex] += 1;
       return;
     }
 
     final nextTask = _currentTaskIndex + 1;
+    if (nextTask < _activeQuestions.length) {
+      setState(() {
+        _currentTaskIndex = nextTask;
+      });
+      return;
+    }
+
+    final phaseCompletedAt = DateTime.now();
+    _phaseCompletedAt[_currentPhaseIndex] = phaseCompletedAt;
+
+    final hasNextPhase = _currentPhaseIndex + 1 < _phaseDwellDurations.length;
+    if (!hasNextPhase) {
+      _completeSessionAndShowReport();
+      return;
+    }
+
+    final completedPhaseNumber = _currentPhaseIndex + 1;
+    final nextPhaseIndex = _currentPhaseIndex + 1;
     setState(() {
-      _currentTaskIndex = nextTask;
+      _currentPhaseIndex = nextPhaseIndex;
+      _currentTaskIndex = 0;
+      _phaseStartTimes[nextPhaseIndex] = phaseCompletedAt;
     });
 
-    if (nextTask >= widget.testQuestions.length) {
-      _completeSessionAndShowReport();
+    if (!mounted) {
+      return;
     }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Round $completedPhaseNumber complete. '
+          'Starting Round ${nextPhaseIndex + 1}.',
+        ),
+      ),
+    );
   }
 
   void _completeSessionAndShowReport() {
@@ -76,18 +128,44 @@ class _TestPageState extends State<TestPage> {
     }
     _isCompletingSession = true;
 
-    final completionTime = DateTime.now().difference(_sessionStartTime);
-    final failedAttempts = _wrongTargetActivations;
-    final result = TestSessionResult.fromSession(
-      completedAt: DateTime.now(),
-      completionTime: completionTime,
-      wrongTargetActivations: _wrongTargetActivations,
-      failedAttempts: failedAttempts,
-      questions: widget.testQuestions,
-      attemptsPerQuestion: List<int>.from(_questionAttempts),
-      customMetrics: <String, Object?>{
-        'sessionStartIso': _sessionStartTime.toIso8601String(),
+    final completedAt = DateTime.now();
+    _phaseCompletedAt[_currentPhaseIndex] ??= completedAt;
+
+    final phaseResults = List<DwellPhaseResult>.generate(
+      _phaseDwellDurations.length,
+      (index) {
+        final phaseStart = _phaseStartTimes[index];
+        final phaseCompleted = _phaseCompletedAt[index] ?? completedAt;
+        final dwellDuration = _phaseDwellDurations[index];
+        final sessionResult = TestSessionResult.fromSession(
+          completedAt: phaseCompleted,
+          completionTime: phaseCompleted.difference(phaseStart),
+          wrongTargetActivations: _phaseWrongTargetActivations[index],
+          failedAttempts: _phaseWrongTargetActivations[index],
+          questions: _phaseQuestions[index],
+          attemptsPerQuestion: List<int>.from(_phaseAttempts[index]),
+          customMetrics: <String, Object?>{
+            'sessionStartIso': phaseStart.toIso8601String(),
+            'phaseOrder': index + 1,
+            'dwellDurationMs': dwellDuration.inMilliseconds,
+            'dwellDurationSeconds': dwellDuration.inMilliseconds / 1000,
+            'testAssignment': widget.testAssignment.id,
+          },
+        );
+        return DwellPhaseResult(
+          phaseOrder: index + 1,
+          dwellDuration: dwellDuration,
+          sessionResult: sessionResult,
+        );
       },
+      growable: false,
+    );
+
+    final result = AbTestResult(
+      assignment: widget.testAssignment,
+      startedAt: _abTestStartTime,
+      completedAt: completedAt,
+      phaseResults: phaseResults,
     );
 
     if (!mounted) {
@@ -100,24 +178,11 @@ class _TestPageState extends State<TestPage> {
   }
 
   Widget _buildTaskCard() {
-    if (_isFinished) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFD6EEEB),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFF8FC9C1)),
-        ),
-        child: const Text(
-          'All tasks done. You can keep interacting or go back.',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-      );
-    }
-
-    final currentTask = widget.testQuestions[_currentTaskIndex];
+    final currentTask = _activeQuestions[_currentTaskIndex];
     final colors = Theme.of(context).colorScheme;
+    final phaseNumber = _currentPhaseIndex + 1;
+    final totalPhases = _phaseDwellDurations.length;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -130,7 +195,17 @@ class _TestPageState extends State<TestPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Question ${_currentTaskIndex + 1}/${widget.testQuestions.length}',
+            '${widget.testAssignment.title}  |  '
+            'Round $phaseNumber/$totalPhases',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colors.primary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Question ${_currentTaskIndex + 1}/${_activeQuestions.length}',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -166,7 +241,7 @@ class _TestPageState extends State<TestPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Tilt the device to move the cursor. Hold over a button\nfor a moment to activate it with haptics.',
+                'Tilt the device to move the cursor. Hold over a button to activate it.',
                 style: TextStyle(fontSize: 14, height: 1.4),
               ),
               const SizedBox(height: 12),
@@ -174,8 +249,8 @@ class _TestPageState extends State<TestPage> {
               const SizedBox(height: 12),
               Expanded(
                 child: TouchlessRing(
-                  dwellDuration: const Duration(seconds: 2),
-                  fastDwellDuration: const Duration(seconds: 2),
+                  dwellDuration: _activeDwellDuration,
+                  fastDwellDuration: _activeDwellDuration,
                   items: items,
                   showDebugToggle: kDebugMode,
                   onActivate: _handleActivation,
