@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../data/test_questions.dart';
 import '../models/ab_test_assignment.dart';
+import '../widgets/touchless_ring.dart';
 import 'test_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -154,6 +156,10 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final practiceItems = kButtonLabels
+        .map((label) => Text(label))
+        .toList(growable: false);
+
     return Scaffold(
       // backgroundColor: const Color(0xFFE5ECEB),
       body: SafeArea(
@@ -168,25 +174,29 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               const Text(
-                'Press Start Test, then choose Test One or Test Two.',
-                style: TextStyle(fontSize: 15, height: 1.4),
+                'Test your touchless interaction skills with our A/B test. Follow the instructions to complete the test and view your results.',
+                style: TextStyle(fontSize: 16, height: 1.4),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
               const Text(
-                'Task Instructions:',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                'Practice Ring (Optional)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
-              const SizedBox(height: 10),
-              Text(
-                'Each phase has 6 questions (all buttons once) in random order.',
-                style: const TextStyle(fontSize: 15),
+              const SizedBox(height: 4),
+              const Text(
+                'Practice hovering and selecting buttons here. Practice is not logged.',
+                style: TextStyle(fontSize: 13, height: 1.3),
               ),
               const SizedBox(height: 8),
-              Text(
-                'Try to be as accurate as possible. Wrong selections are counted and you can retry until correct.',
-                style: const TextStyle(fontSize: 15),
+              Expanded(
+                child: TouchlessRing(
+                  items: practiceItems,
+                  dwellDuration: const Duration(milliseconds: 1500),
+                  fastDwellDuration: const Duration(milliseconds: 1500),
+                  showDebugToggle: false,
+                ),
               ),
-              const Spacer(),
+              const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
