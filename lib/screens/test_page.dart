@@ -10,9 +10,14 @@ import '../widgets/touchless_ring.dart';
 import 'test_report_page.dart';
 
 class TestPage extends StatefulWidget {
-  const TestPage({super.key, required this.testAssignment});
+  const TestPage({
+    super.key,
+    required this.testAssignment,
+    required this.participantId,
+  });
 
   final AbTestAssignment testAssignment;
+  final String participantId;
 
   static const List<String> labels = kButtonLabels;
 
@@ -212,6 +217,7 @@ class _TestPageState extends State<TestPage> {
             'dwellDurationMs': dwellDuration.inMilliseconds,
             'dwellDurationSeconds': dwellDuration.inMilliseconds / 1000,
             'testAssignment': widget.testAssignment.id,
+            'participantId': widget.participantId,
           },
         );
         return DwellPhaseResult(
@@ -225,6 +231,7 @@ class _TestPageState extends State<TestPage> {
 
     final result = AbTestResult(
       assignment: widget.testAssignment,
+      participantId: widget.participantId,
       startedAt: _abTestStartTime,
       completedAt: completedAt,
       phaseResults: phaseResults,
@@ -276,8 +283,8 @@ class _TestPageState extends State<TestPage> {
           ),
           const SizedBox(height: 5),
           Text(
-            currentTask.prompt,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            'Select ${currentTask.targetLabel}',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
           ),
         ],
       ),

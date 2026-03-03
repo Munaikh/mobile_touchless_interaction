@@ -6,6 +6,58 @@ import 'test_page.dart';
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
+  Future<String?> _showParticipantIdDialog(BuildContext context) async {
+    final controller = TextEditingController(text: 'P01');
+    var currentValue = controller.text.trim();
+
+    final participantId = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Participant ID'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: 'Enter ID (e.g., P01)',
+                ),
+                onChanged: (value) {
+                  setDialogState(() {
+                    currentValue = value.trim();
+                  });
+                },
+                onSubmitted: (_) {
+                  if (currentValue.isNotEmpty) {
+                    Navigator.of(dialogContext).pop(currentValue);
+                  }
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: currentValue.isEmpty
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(currentValue),
+                  child: const Text('Continue'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+    return participantId;
+  }
+
   Future<AbTestAssignment?> _showTestSelectionDialog(
     BuildContext context,
   ) async {
@@ -74,6 +126,14 @@ class HomePage extends StatelessWidget {
   }
 
   Future<void> _startTest(BuildContext context) async {
+    final participantId = await _showParticipantIdDialog(context);
+    if (participantId == null || participantId.trim().isEmpty) {
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
+
     final assignment = await _showTestSelectionDialog(context);
     if (assignment == null) {
       return;
@@ -83,7 +143,12 @@ class HomePage extends StatelessWidget {
       return;
     }
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TestPage(testAssignment: assignment)),
+      MaterialPageRoute(
+        builder: (_) => TestPage(
+          testAssignment: assignment,
+          participantId: participantId.trim(),
+        ),
+      ),
     );
   }
 

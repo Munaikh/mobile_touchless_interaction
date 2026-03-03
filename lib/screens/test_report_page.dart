@@ -214,6 +214,8 @@ class TestReportPage extends StatelessWidget {
                   value: result.assignment.title,
                 ),
                 const SizedBox(height: 10),
+                StatCard(title: 'Participant ID', value: result.participantId),
+                const SizedBox(height: 10),
                 StatCard(
                   title: 'Total completion time',
                   value: _formatDuration(result.totalCompletionTime),

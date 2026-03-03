@@ -34,12 +34,14 @@ class DwellPhaseResult {
 class AbTestResult {
   const AbTestResult({
     required this.assignment,
+    required this.participantId,
     required this.startedAt,
     required this.completedAt,
     required this.phaseResults,
   });
 
   final AbTestAssignment assignment;
+  final String participantId;
   final DateTime startedAt;
   final DateTime completedAt;
   final List<DwellPhaseResult> phaseResults;
@@ -64,6 +66,7 @@ class AbTestResult {
     return <String, Object?>{
       'schemaVersion': 1,
       'testAssignment': assignment.toJson(),
+      'participantId': participantId,
       'startedAtIso': startedAt.toIso8601String(),
       'completedAtIso': completedAt.toIso8601String(),
       'totalCompletionTimeMs': totalCompletionTime.inMilliseconds,
