@@ -14,18 +14,11 @@ class DwellPhaseResult {
   final Duration dwellDuration;
   final TestSessionResult sessionResult;
 
-  String get dwellKey => '${dwellDuration.inSeconds}s';
-
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'phaseOrder': phaseOrder,
       'dwellDurationMs': dwellDuration.inMilliseconds,
       'dwellDurationSeconds': dwellDuration.inMilliseconds / 1000,
-      'firstTryRatePercent': sessionResult.firstTryRatePercent,
-      'attemptsPerTrial': sessionResult.attemptsPerTrial,
-      'wrongTargetActivations': sessionResult.wrongTargetActivations,
-      'failedAttempts': sessionResult.failedAttempts,
-      'completionTimeMs': sessionResult.completionTime.inMilliseconds,
       'sessionResult': sessionResult.toJson(),
     };
   }
@@ -48,20 +41,6 @@ class AbTestResult {
 
   Duration get totalCompletionTime => completedAt.difference(startedAt);
 
-  Map<String, Object?> _ratesByDwellConfig() {
-    final rates = <String, Object?>{};
-    for (final phase in phaseResults) {
-      rates[phase.dwellKey] = <String, Object?>{
-        'firstTryRatePercent': phase.sessionResult.firstTryRatePercent,
-        'attemptsPerTrial': phase.sessionResult.attemptsPerTrial,
-        'wrongTargetActivations': phase.sessionResult.wrongTargetActivations,
-        'failedAttempts': phase.sessionResult.failedAttempts,
-        'completionTimeMs': phase.sessionResult.completionTime.inMilliseconds,
-      };
-    }
-    return rates;
-  }
-
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'schemaVersion': 1,
@@ -70,7 +49,6 @@ class AbTestResult {
       'startedAtIso': startedAt.toIso8601String(),
       'completedAtIso': completedAt.toIso8601String(),
       'totalCompletionTimeMs': totalCompletionTime.inMilliseconds,
-      'ratesByDwellConfig': _ratesByDwellConfig(),
       'phaseResults': phaseResults
           .map((phaseResult) => phaseResult.toJson())
           .toList(growable: false),
