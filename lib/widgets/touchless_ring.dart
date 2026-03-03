@@ -21,6 +21,7 @@ class TouchlessRing extends StatefulWidget {
     required this.items,
     this.itemBuilder,
     this.onActivate,
+    this.onActivateWithContext,
     this.onHoverChanged,
     this.dwellDuration = const Duration(milliseconds: 1100),
     this.fastDwellDuration = const Duration(milliseconds: 1100),
@@ -33,6 +34,8 @@ class TouchlessRing extends StatefulWidget {
   final List<Widget> items;
   final TouchlessRingItemBuilder? itemBuilder;
   final ValueChanged<int>? onActivate;
+  final void Function(int index, bool wasHoveredAtActivation)?
+  onActivateWithContext;
   final ValueChanged<int?>? onHoverChanged;
   final Duration dwellDuration;
   final Duration fastDwellDuration;
@@ -360,6 +363,7 @@ class _TouchlessRingState extends State<TouchlessRing>
 
     _lastActivationTime = now;
     Haptics.vibrate(HapticsType.success);
+    widget.onActivateWithContext?.call(index, _hoveredIndex == index);
     widget.onActivate?.call(index);
   }
 

@@ -30,6 +30,8 @@ class _TestPageState extends State<TestPage> {
   late List<Duration> _phaseDwellDurations;
   late List<List<TaskQuestion>> _phaseQuestions;
   late List<List<int>> _phaseAttempts;
+  late List<List<String?>> _phaseActivatedLabels;
+  late List<List<TrialErrorType>> _phaseErrorTypes;
   late List<List<int>> _phaseTargetSwitchCounts;
   late List<List<int>> _phaseCancelCounts;
   late List<int> _phaseWrongTargetActivations;
@@ -54,6 +56,17 @@ class _TestPageState extends State<TestPage> {
     );
     _phaseAttempts = _phaseQuestions
         .map((questions) => List<int>.filled(questions.length, 0))
+        .toList(growable: false);
+    _phaseActivatedLabels = _phaseQuestions
+        .map((questions) => List<String?>.filled(questions.length, null))
+        .toList(growable: false);
+    _phaseErrorTypes = _phaseQuestions
+        .map(
+          (questions) => List<TrialErrorType>.filled(
+            questions.length,
+            TrialErrorType.none,
+          ),
+        )
         .toList(growable: false);
     _phaseTargetSwitchCounts = _phaseQuestions
         .map((questions) => List<int>.filled(questions.length, 0))
@@ -120,7 +133,19 @@ class _TestPageState extends State<TestPage> {
     _trialHoveredIndex = hoveredIndex;
   }
 
-  void _handleActivation(int index) {
+  void _setTrialError({
+    required String activatedLabel,
+    required TrialErrorType errorType,
+  }) {
+    if (_phaseErrorTypes[_currentPhaseIndex][_currentTaskIndex] ==
+        TrialErrorType.none) {
+      _phaseErrorTypes[_currentPhaseIndex][_currentTaskIndex] = errorType;
+      _phaseActivatedLabels[_currentPhaseIndex][_currentTaskIndex] =
+          activatedLabel;
+    }
+  }
+
+  void _handleActivationWithContext(int index, bool wasHoveredAtActivation) {
     if (_isCompletingSession) {
       return;
     }
@@ -132,9 +157,28 @@ class _TestPageState extends State<TestPage> {
     final selectedLabel = TestPage.labels[index];
     _phaseAttempts[_currentPhaseIndex][_currentTaskIndex] += 1;
     final currentTask = _activeQuestions[_currentTaskIndex];
-    if (selectedLabel.toLowerCase() != currentTask.targetLabel.toLowerCase()) {
+    final isCorrectActivation =
+        selectedLabel.toLowerCase() == currentTask.targetLabel.toLowerCase();
+
+    if (!isCorrectActivation) {
       _phaseWrongTargetActivations[_currentPhaseIndex] += 1;
+      _setTrialError(
+        activatedLabel: selectedLabel,
+        errorType: wasHoveredAtActivation
+            ? TrialErrorType.wrongTargetActivation
+            : TrialErrorType.unintendedActivation,
+      );
       return;
+    }
+
+    if (!wasHoveredAtActivation) {
+      _setTrialError(
+        activatedLabel: selectedLabel,
+        errorType: TrialErrorType.unintendedActivation,
+      );
+    } else {
+      _phaseActivatedLabels[_currentPhaseIndex][_currentTaskIndex] ??=
+          selectedLabel;
     }
 
     final solvedAt = DateTime.now();
@@ -205,6 +249,12 @@ class _TestPageState extends State<TestPage> {
           failedAttempts: _phaseWrongTargetActivations[index],
           questions: _phaseQuestions[index],
           attemptsPerQuestion: List<int>.from(_phaseAttempts[index]),
+          activatedLabelsPerQuestion: List<String?>.from(
+            _phaseActivatedLabels[index],
+          ),
+          errorTypesPerQuestion: List<TrialErrorType>.from(
+            _phaseErrorTypes[index],
+          ),
           targetSwitchesPerQuestion: List<int>.from(
             _phaseTargetSwitchCounts[index],
           ),
@@ -323,7 +373,7 @@ class _TestPageState extends State<TestPage> {
                   items: items,
                   showDebugToggle: kDebugMode,
                   onHoverChanged: _handleHoverChanged,
-                  onActivate: _handleActivation,
+                  onActivateWithContext: _handleActivationWithContext,
                 ),
               ),
             ],

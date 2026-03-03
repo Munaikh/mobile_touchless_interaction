@@ -2,12 +2,29 @@ import 'dart:convert';
 
 import 'task_question.dart';
 
+enum TrialErrorType { none, wrongTargetActivation, unintendedActivation }
+
+extension TrialErrorTypeX on TrialErrorType {
+  String get wireValue {
+    switch (this) {
+      case TrialErrorType.none:
+        return 'none';
+      case TrialErrorType.wrongTargetActivation:
+        return 'wrong_target_activation';
+      case TrialErrorType.unintendedActivation:
+        return 'unintended_activation';
+    }
+  }
+}
+
 class QuestionResult {
   const QuestionResult({
     required this.index,
     required this.prompt,
     required this.targetLabel,
     required this.attempts,
+    required this.activatedLabel,
+    required this.errorType,
     required this.targetSwitchCount,
     required this.cancelCount,
     this.trialStartedAt,
@@ -18,6 +35,8 @@ class QuestionResult {
   final String prompt;
   final String targetLabel;
   final int attempts;
+  final String? activatedLabel;
+  final TrialErrorType errorType;
   final int targetSwitchCount;
   final int cancelCount;
   final DateTime? trialStartedAt;
@@ -40,6 +59,8 @@ class QuestionResult {
       'targetLabel': targetLabel,
       'attempts': attempts,
       'firstAttemptCorrect': firstAttemptCorrect,
+      'activatedLabel': activatedLabel,
+      'errorType': errorType.wireValue,
       'targetSwitchCount': targetSwitchCount,
       'cancelCount': cancelCount,
       'trialStartedAtIso': trialStartedAt?.toIso8601String(),
@@ -68,6 +89,8 @@ class TestSessionResult {
     required int failedAttempts,
     required List<TaskQuestion> questions,
     required List<int> attemptsPerQuestion,
+    List<String?> activatedLabelsPerQuestion = const <String?>[],
+    List<TrialErrorType> errorTypesPerQuestion = const <TrialErrorType>[],
     List<int> targetSwitchesPerQuestion = const <int>[],
     List<int> cancelCountsPerQuestion = const <int>[],
     List<DateTime?> trialStartedAt = const <DateTime?>[],
@@ -81,6 +104,12 @@ class TestSessionResult {
       final attempts = index < attemptsPerQuestion.length
           ? attemptsPerQuestion[index]
           : 0;
+      final activatedLabel = index < activatedLabelsPerQuestion.length
+          ? activatedLabelsPerQuestion[index]
+          : null;
+      final errorType = index < errorTypesPerQuestion.length
+          ? errorTypesPerQuestion[index]
+          : TrialErrorType.none;
       final targetSwitchCount = index < targetSwitchesPerQuestion.length
           ? targetSwitchesPerQuestion[index]
           : 0;
@@ -98,6 +127,8 @@ class TestSessionResult {
         prompt: question.prompt,
         targetLabel: question.targetLabel,
         attempts: attempts,
+        activatedLabel: activatedLabel,
+        errorType: errorType,
         targetSwitchCount: targetSwitchCount,
         cancelCount: cancelCount,
         trialStartedAt: startedAt,
