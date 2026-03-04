@@ -42,8 +42,8 @@ class TestReportPage extends StatelessWidget {
             name: fileName,
           ),
         ],
-        subject: 'Touchless Hover A/B Test Results (JSON)',
-        text: 'Touchless Hover A/B test results exported as JSON.',
+        subject: 'Touchless Hover Latin-Square Results (JSON)',
+        text: 'Touchless Hover Latin-square test results exported as JSON.',
         sharePositionOrigin: shareOrigin,
       );
     } catch (error) {
@@ -122,6 +122,17 @@ class TestReportPage extends StatelessWidget {
               color: colors.onSurface,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            '${phaseResult.condition.mobility.title}  |  '
+            '${phaseResult.condition.dwellProfile.label} '
+            '(${(phaseResult.dwellDuration.inMilliseconds / 1000).toStringAsFixed(0)}s dwell)',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.primary,
+            ),
+          ),
           const SizedBox(height: 10),
           StatCard(
             title: 'First-attempt correct',
@@ -178,7 +189,7 @@ class TestReportPage extends StatelessWidget {
         backgroundColor: Colors.transparent,
         foregroundColor: colors.primary,
         elevation: 0,
-        title: const Text('A/B Test Report'),
+        title: const Text('Latin-Square Test Report'),
         actions: [
           Builder(
             builder: (buttonContext) {
@@ -210,7 +221,7 @@ class TestReportPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 StatCard(
-                  title: 'Test Assignment',
+                  title: 'Latin-square order',
                   value: result.assignment.title,
                 ),
                 const SizedBox(height: 10),

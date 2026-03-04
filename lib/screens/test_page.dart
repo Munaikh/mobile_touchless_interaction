@@ -26,8 +26,8 @@ class TestPage extends StatefulWidget {
 }
 
 class _TestPageState extends State<TestPage> {
-  late DateTime _abTestStartTime;
-  late List<Duration> _phaseDwellDurations;
+  DateTime? _abTestStartTime;
+  late List<TestCondition> _phaseConditions;
   late List<List<TaskQuestion>> _phaseQuestions;
   late List<List<int>> _phaseAttempts;
   late List<List<String?>> _phaseActivatedLabels;
@@ -35,22 +35,22 @@ class _TestPageState extends State<TestPage> {
   late List<List<int>> _phaseTargetSwitchCounts;
   late List<List<int>> _phaseCancelCounts;
   late List<int> _phaseWrongTargetActivations;
-  late List<DateTime> _phaseStartTimes;
+  late List<DateTime?> _phaseStartTimes;
   late List<DateTime?> _phaseCompletedAt;
   late List<List<DateTime?>> _phaseTrialStartedAt;
   late List<List<DateTime?>> _phaseTrialCompletedAt;
   int? _trialHoveredIndex;
   int _currentPhaseIndex = 0;
   int _currentTaskIndex = 0;
+  bool _showPreparationScreen = true;
   bool _isCompletingSession = false;
 
   @override
   void initState() {
     super.initState();
-    _abTestStartTime = DateTime.now();
-    _phaseDwellDurations = widget.testAssignment.dwellSequence;
+    _phaseConditions = widget.testAssignment.phaseSequence;
     _phaseQuestions = List<List<TaskQuestion>>.generate(
-      _phaseDwellDurations.length,
+      _phaseConditions.length,
       (_) => buildShuffledQuestionSet(),
       growable: false,
     );
@@ -75,17 +75,17 @@ class _TestPageState extends State<TestPage> {
         .map((questions) => List<int>.filled(questions.length, 0))
         .toList(growable: false);
     _phaseWrongTargetActivations = List<int>.filled(
-      _phaseDwellDurations.length,
+      _phaseConditions.length,
       0,
       growable: false,
     );
-    _phaseStartTimes = List<DateTime>.filled(
-      _phaseDwellDurations.length,
-      _abTestStartTime,
+    _phaseStartTimes = List<DateTime?>.filled(
+      _phaseConditions.length,
+      null,
       growable: false,
     );
     _phaseCompletedAt = List<DateTime?>.filled(
-      _phaseDwellDurations.length,
+      _phaseConditions.length,
       null,
       growable: false,
     );
@@ -101,15 +101,52 @@ class _TestPageState extends State<TestPage> {
               List<DateTime?>.filled(questions.length, null, growable: false),
         )
         .toList(growable: false);
-    _phaseStartTimes[0] = _abTestStartTime;
-    if (_phaseTrialStartedAt.isNotEmpty && _phaseTrialStartedAt[0].isNotEmpty) {
-      _phaseTrialStartedAt[0][0] = _abTestStartTime;
-    }
   }
 
   List<TaskQuestion> get _activeQuestions =>
       _phaseQuestions[_currentPhaseIndex];
-  Duration get _activeDwellDuration => _phaseDwellDurations[_currentPhaseIndex];
+  TestCondition get _activeCondition => _phaseConditions[_currentPhaseIndex];
+  Duration get _activeDwellDuration => _activeCondition.dwellDuration;
+
+  String _formatDwellDuration(Duration duration) {
+    final seconds = duration.inMilliseconds / 1000;
+    final wholeSeconds = seconds.roundToDouble();
+    if (seconds == wholeSeconds) {
+      return '${seconds.toStringAsFixed(0)}s';
+    }
+    return '${seconds.toStringAsFixed(1)}s';
+  }
+
+  String? _transitionLabel() {
+    if (_currentPhaseIndex == 0) {
+      return null;
+    }
+    final previousMobility = _phaseConditions[_currentPhaseIndex - 1].mobility;
+    final currentMobility = _activeCondition.mobility;
+    if (previousMobility == currentMobility) {
+      return null;
+    }
+    return '${previousMobility.title} -> ${currentMobility.title}';
+  }
+
+  void _startCurrentPhase() {
+    if (!_showPreparationScreen || _isCompletingSession) {
+      return;
+    }
+
+    final phaseStartTime = DateTime.now();
+    _abTestStartTime ??= phaseStartTime;
+    _phaseStartTimes[_currentPhaseIndex] = phaseStartTime;
+    if (_phaseTrialStartedAt[_currentPhaseIndex].isNotEmpty) {
+      _phaseTrialStartedAt[_currentPhaseIndex][0] = phaseStartTime;
+    }
+
+    _trialHoveredIndex = null;
+    setState(() {
+      _currentTaskIndex = 0;
+      _showPreparationScreen = false;
+    });
+  }
 
   void _handleHoverChanged(int? hoveredIndex) {
     if (_isCompletingSession || _currentTaskIndex >= _activeQuestions.length) {
@@ -196,35 +233,19 @@ class _TestPageState extends State<TestPage> {
     final phaseCompletedAt = solvedAt;
     _phaseCompletedAt[_currentPhaseIndex] = phaseCompletedAt;
 
-    final hasNextPhase = _currentPhaseIndex + 1 < _phaseDwellDurations.length;
+    final hasNextPhase = _currentPhaseIndex + 1 < _phaseConditions.length;
     if (!hasNextPhase) {
       _completeSessionAndShowReport();
       return;
     }
 
-    final completedPhaseNumber = _currentPhaseIndex + 1;
     final nextPhaseIndex = _currentPhaseIndex + 1;
     setState(() {
       _currentPhaseIndex = nextPhaseIndex;
       _currentTaskIndex = 0;
-      _phaseStartTimes[nextPhaseIndex] = phaseCompletedAt;
-      if (_phaseTrialStartedAt[nextPhaseIndex].isNotEmpty) {
-        _phaseTrialStartedAt[nextPhaseIndex][0] = phaseCompletedAt;
-      }
+      _showPreparationScreen = true;
     });
     _trialHoveredIndex = null;
-
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Round $completedPhaseNumber complete. '
-          'Starting Round ${nextPhaseIndex + 1}.',
-        ),
-      ),
-    );
   }
 
   void _completeSessionAndShowReport() {
@@ -237,11 +258,13 @@ class _TestPageState extends State<TestPage> {
     _phaseCompletedAt[_currentPhaseIndex] ??= completedAt;
 
     final phaseResults = List<DwellPhaseResult>.generate(
-      _phaseDwellDurations.length,
+      _phaseConditions.length,
       (index) {
-        final phaseStart = _phaseStartTimes[index];
+        final phaseCondition = _phaseConditions[index];
+        final recordedPhaseStart = _phaseStartTimes[index];
         final phaseCompleted = _phaseCompletedAt[index] ?? completedAt;
-        final dwellDuration = _phaseDwellDurations[index];
+        final phaseStart = recordedPhaseStart ?? phaseCompleted;
+        final dwellDuration = phaseCondition.dwellDuration;
         final sessionResult = TestSessionResult.fromSession(
           completedAt: phaseCompleted,
           completionTime: phaseCompleted.difference(phaseStart),
@@ -262,8 +285,11 @@ class _TestPageState extends State<TestPage> {
           trialStartedAt: List<DateTime?>.from(_phaseTrialStartedAt[index]),
           trialCompletedAt: List<DateTime?>.from(_phaseTrialCompletedAt[index]),
           customMetrics: <String, Object?>{
-            'sessionStartIso': phaseStart.toIso8601String(),
+            'sessionStartIso': recordedPhaseStart?.toIso8601String(),
             'phaseOrder': index + 1,
+            'conditionId': phaseCondition.id,
+            'mobilityBehavior': phaseCondition.mobility.id,
+            'dwellProfile': phaseCondition.dwellProfile.id,
             'dwellDurationMs': dwellDuration.inMilliseconds,
             'dwellDurationSeconds': dwellDuration.inMilliseconds / 1000,
             'testAssignment': widget.testAssignment.id,
@@ -273,6 +299,7 @@ class _TestPageState extends State<TestPage> {
         return DwellPhaseResult(
           phaseOrder: index + 1,
           dwellDuration: dwellDuration,
+          condition: phaseCondition,
           sessionResult: sessionResult,
         );
       },
@@ -282,7 +309,7 @@ class _TestPageState extends State<TestPage> {
     final result = AbTestResult(
       assignment: widget.testAssignment,
       participantId: widget.participantId,
-      startedAt: _abTestStartTime,
+      startedAt: _abTestStartTime ?? completedAt,
       completedAt: completedAt,
       phaseResults: phaseResults,
     );
@@ -300,7 +327,7 @@ class _TestPageState extends State<TestPage> {
     final currentTask = _activeQuestions[_currentTaskIndex];
     final colors = Theme.of(context).colorScheme;
     final phaseNumber = _currentPhaseIndex + 1;
-    final totalPhases = _phaseDwellDurations.length;
+    final totalPhases = _phaseConditions.length;
 
     return Container(
       width: double.infinity,
@@ -324,6 +351,17 @@ class _TestPageState extends State<TestPage> {
           ),
           const SizedBox(height: 6),
           Text(
+            '${_activeCondition.mobility.title}  |  '
+            '${_activeCondition.dwellProfile.label} '
+            '(${_formatDwellDuration(_activeDwellDuration)} dwell)',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colors.onPrimaryContainer,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
             'Question ${_currentTaskIndex + 1}/${_activeQuestions.length}',
             style: TextStyle(
               fontSize: 12,
@@ -341,11 +379,121 @@ class _TestPageState extends State<TestPage> {
     );
   }
 
+  Widget _buildPreparationCard() {
+    final colors = Theme.of(context).colorScheme;
+    final phaseNumber = _currentPhaseIndex + 1;
+    final totalPhases = _phaseConditions.length;
+    final transitionLabel = _transitionLabel();
+    final previousMobility = _currentPhaseIndex == 0
+        ? null
+        : _phaseConditions[_currentPhaseIndex - 1].mobility;
+    final currentMobility = _activeCondition.mobility;
+    final isWalkingToStanding =
+        previousMobility == MobilityBehavior.walking &&
+        currentMobility == MobilityBehavior.standing;
+
+    final transitionInstruction = transitionLabel == null
+        ? null
+        : isWalkingToStanding
+        ? 'Transition detected. Stop walking and stand still before proceeding.'
+        : 'Transition detected. Start walking before proceeding.';
+
+    final actionLabel = _currentPhaseIndex == 0
+        ? 'Start Round 1'
+        : 'Proceed to Round $phaseNumber';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.primaryContainer,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD3DEDD)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${widget.testAssignment.title}  |  Round $phaseNumber/$totalPhases',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.primary,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Next condition: ${_activeCondition.title}',
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _activeCondition.mobility.preparationHint,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: colors.onPrimaryContainer,
+            ),
+          ),
+          if (transitionLabel != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mobility transition: $transitionLabel',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: colors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    transitionInstruction!,
+                    style: TextStyle(fontSize: 13, color: colors.onSurface),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          const Text(
+            'Take your time to prepare, then press proceed.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _startCurrentPhase,
+              child: Text(actionLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = TestPage.labels
         .map((label) => Text(label))
         .toList(growable: false);
+    final subtitle = _showPreparationScreen
+        ? 'Review the next mobility condition, prepare, then press proceed.'
+        : 'Tilt the device to move the cursor. Hold over a button to activate it.';
 
     return Scaffold(
       body: SafeArea(
@@ -359,23 +507,34 @@ class _TestPageState extends State<TestPage> {
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Tilt the device to move the cursor. Hold over a button to activate it.',
-                style: TextStyle(fontSize: 14, height: 1.4),
-              ),
+              Text(subtitle, style: TextStyle(fontSize: 14, height: 1.4)),
               const SizedBox(height: 12),
-              _buildTaskCard(),
-              const SizedBox(height: 12),
-              Expanded(
-                child: TouchlessRing(
-                  dwellDuration: _activeDwellDuration,
-                  fastDwellDuration: _activeDwellDuration,
-                  items: items,
-                  showDebugToggle: kDebugMode,
-                  onHoverChanged: _handleHoverChanged,
-                  onActivateWithContext: _handleActivationWithContext,
+              if (_showPreparationScreen)
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: SingleChildScrollView(
+                        child: _buildPreparationCard(),
+                      ),
+                    ),
+                  ),
+                )
+              else ...[
+                _buildTaskCard(),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TouchlessRing(
+                    key: ValueKey<String>('phase_$_currentPhaseIndex'),
+                    dwellDuration: _activeDwellDuration,
+                    fastDwellDuration: _activeDwellDuration,
+                    items: items,
+                    showDebugToggle: kDebugMode,
+                    onHoverChanged: _handleHoverChanged,
+                    onActivateWithContext: _handleActivationWithContext,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

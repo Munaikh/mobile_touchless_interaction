@@ -7,16 +7,19 @@ class DwellPhaseResult {
   const DwellPhaseResult({
     required this.phaseOrder,
     required this.dwellDuration,
+    required this.condition,
     required this.sessionResult,
   });
 
   final int phaseOrder;
   final Duration dwellDuration;
+  final TestCondition condition;
   final TestSessionResult sessionResult;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'phaseOrder': phaseOrder,
+      'condition': condition.toJson(),
       'dwellDurationMs': dwellDuration.inMilliseconds,
       'dwellDurationSeconds': dwellDuration.inMilliseconds / 1000,
       'sessionResult': sessionResult.toJson(),

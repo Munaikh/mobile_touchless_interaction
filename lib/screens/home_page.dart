@@ -63,25 +63,28 @@ class HomePage extends StatelessWidget {
   Future<AbTestAssignment?> _showTestSelectionDialog(
     BuildContext context,
   ) async {
+    final assignments = AbTestAssignment.values;
+
     return showDialog<AbTestAssignment>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Choose Test Order'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTestChoice(
-                context: dialogContext,
-                assignment: AbTestAssignment.testOne,
-              ),
-              const SizedBox(height: 8),
-              _buildTestChoice(
-                context: dialogContext,
-                assignment: AbTestAssignment.testTwo,
-              ),
-            ],
+          title: const Text('Choose Latin-Square Order'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var index = 0; index < assignments.length; index++) ...[
+                  _buildTestChoice(
+                    context: dialogContext,
+                    assignment: assignments[index],
+                  ),
+                  if (index != assignments.length - 1)
+                    const SizedBox(height: 8),
+                ],
+              ],
+            ),
           ),
         );
       },
@@ -111,6 +114,15 @@ class HomePage extends StatelessWidget {
             Text(
               assignment.title,
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              assignment.summary,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: colors.onPrimaryContainer,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -174,7 +186,7 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               const Text(
-                'Test your touchless interaction skills with our A/B test. Follow the instructions to complete the test and view your results.',
+                'Complete a 4x4 Latin-square touchless test with standing and walking rounds.',
                 style: TextStyle(fontSize: 16, height: 1.4),
               ),
               const SizedBox(height: 16),
